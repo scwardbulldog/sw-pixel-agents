@@ -17,6 +17,8 @@ interface SettingsModalProps {
   externalAssetDirectories: string[];
   watchAllSessions: boolean;
   onToggleWatchAllSessions: () => void;
+  hooksEnabled: boolean;
+  onToggleHooksEnabled: () => void;
 }
 
 export function SettingsModal({
@@ -29,6 +31,8 @@ export function SettingsModal({
   externalAssetDirectories,
   watchAllSessions,
   onToggleWatchAllSessions,
+  hooksEnabled,
+  onToggleHooksEnabled,
 }: SettingsModalProps) {
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
 
@@ -98,6 +102,11 @@ export function SettingsModal({
         label="Watch All Sessions"
         checked={watchAllSessions}
         onChange={onToggleWatchAllSessions}
+      />
+      <Checkbox
+        label="Instant Detection (Hooks)"
+        checked={hooksEnabled}
+        onChange={onToggleHooksEnabled}
       />
       <Checkbox
         label="Always Show Labels"

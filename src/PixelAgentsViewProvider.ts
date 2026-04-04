@@ -3,6 +3,14 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+import type { HookEvent } from '../server/src/hookEventHandler.js';
+import { HookEventHandler } from '../server/src/hookEventHandler.js';
+import {
+  copyHookScript,
+  installHooks,
+  uninstallHooks,
+} from '../server/src/providers/file/claudeHookInstaller.js';
+import { PixelAgentsServer } from '../server/src/server.js';
 import {
   getProjectDirPath,
   launchNewTerminal,
@@ -31,6 +39,8 @@ import {
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
   GLOBAL_KEY_ALWAYS_SHOW_LABELS,
+  GLOBAL_KEY_HOOKS_ENABLED,
+  GLOBAL_KEY_HOOKS_INFO_SHOWN,
   GLOBAL_KEY_LAST_SEEN_VERSION,
   GLOBAL_KEY_SOUND_ENABLED,
   GLOBAL_KEY_WATCH_ALL_SESSIONS,
@@ -40,7 +50,6 @@ import {
 import {
   dismissedJsonlFiles,
   ensureProjectScan,
-  isTrackedProjectDir,
   startExternalSessionScanning,
   startStaleExternalAgentCheck,
 } from './fileWatcher.js';
@@ -83,7 +92,14 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   // Cross-window layout sync
   layoutWatcher: LayoutWatcher | null = null;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  // Pixel Agents Server (hook event reception)
+  private pixelAgentsServer: PixelAgentsServer | null = null;
+  // ServerConfig is not stored as a field; use this.pixelAgentsServer?.getConfig() if needed.
+  private hookEventHandler: HookEventHandler | null = null;
+
+  constructor(private readonly context: vscode.ExtensionContext) {
+    this.initHooks();
+  }
 
   private get extensionUri(): vscode.Uri {
     return this.context.extensionUri;
@@ -97,6 +113,50 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     persistAgents(this.agents, this.context);
   };
 
+  private initHooks(): void {
+    this.hookEventHandler = new HookEventHandler(
+      this.agents,
+      this.waitingTimers,
+      this.permissionTimers,
+      () => this.webview,
+    );
+
+    this.pixelAgentsServer = new PixelAgentsServer();
+    this.pixelAgentsServer.onHookEvent((providerId, event) => {
+      this.hookEventHandler?.handleEvent(providerId, event as HookEvent);
+    });
+
+    this.pixelAgentsServer
+      .start()
+      .then((config) => {
+        // Server always starts regardless of hooks-enabled state.
+        // It's the foundation for WebSocket transport and health monitoring.
+        // Only hook installation/script-copy is gated by the toggle.
+        const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
+        if (hooksEnabled) {
+          installHooks();
+          copyHookScript(this.context.extensionPath);
+        }
+        console.log(`[Pixel Agents] Server ready on port ${config.port}`);
+      })
+      .catch((e) => {
+        console.error(`[Pixel Agents] Failed to start server: ${e}`);
+      });
+  }
+
+  /** Register an agent with the hook event handler for session->agent mapping.
+   *  hookDelivered is NOT set here. It is set only in hookEventHandler.handleEvent()
+   *  when an actual hook event arrives, preserving heuristic fallback for agents
+   *  where hooks aren't working (older Claude, hooks not installed, etc.) */
+  registerAgentHook(agent: AgentState): void {
+    this.hookEventHandler?.registerAgent(agent.sessionId, agent.id);
+  }
+
+  /** Unregister an agent from the hook event handler */
+  unregisterAgentHook(agent: AgentState): void {
+    this.hookEventHandler?.unregisterAgent(agent.sessionId);
+  }
+
   resolveWebviewView(webviewView: vscode.WebviewView) {
     this.webviewView = webviewView;
     webviewView.webview.options = { enableScripts: true };
@@ -104,6 +164,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'openClaude') {
+        const prevAgentIds = new Set(this.agents.keys());
         await launchNewTerminal(
           this.nextAgentId,
           this.nextTerminalIndex,
@@ -121,6 +182,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           message.folderPath as string | undefined,
           message.bypassPermissions as boolean | undefined,
         );
+        // Register newly created agent(s) with hook handler
+        for (const [id, agent] of this.agents) {
+          if (!prevAgentIds.has(id)) {
+            this.registerAgentHook(agent);
+          }
+        }
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
@@ -164,6 +231,19 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         this.context.globalState.update(GLOBAL_KEY_LAST_SEEN_VERSION, message.version as string);
       } else if (message.type === 'setAlwaysShowLabels') {
         this.context.globalState.update(GLOBAL_KEY_ALWAYS_SHOW_LABELS, message.enabled);
+      } else if (message.type === 'setHooksEnabled') {
+        const enabled = message.enabled as boolean;
+        this.context.globalState.update(GLOBAL_KEY_HOOKS_ENABLED, enabled);
+        if (enabled) {
+          installHooks();
+          copyHookScript(this.context.extensionPath);
+          console.log('[Pixel Agents] Hooks enabled by user');
+        } else {
+          uninstallHooks();
+          console.log('[Pixel Agents] Hooks disabled by user');
+        }
+      } else if (message.type === 'setHooksInfoShown') {
+        this.context.globalState.update(GLOBAL_KEY_HOOKS_INFO_SHOWN, true);
       } else if (message.type === 'setWatchAllSessions') {
         const enabled = message.enabled as boolean;
         this.context.globalState.update(GLOBAL_KEY_WATCH_ALL_SESSIONS, enabled);
@@ -224,6 +304,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
         );
+        // Register all restored agents with hook handler
+        for (const agent of this.agents.values()) {
+          this.registerAgentHook(agent);
+        }
         // Send persisted settings to webview
         const soundEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_SOUND_ENABLED, true);
         const lastSeenVersion = this.context.globalState.get<string>(
@@ -241,6 +325,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           false,
         );
         this.watchAllSessions.current = watchAllSessions;
+        const hooksEnabled = this.context.globalState.get<boolean>(GLOBAL_KEY_HOOKS_ENABLED, true);
+        const hooksInfoShown = this.context.globalState.get<boolean>(
+          GLOBAL_KEY_HOOKS_INFO_SHOWN,
+          false,
+        );
         const config = readConfig();
         this.webview?.postMessage({
           type: 'settingsLoaded',
@@ -249,6 +338,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           extensionVersion,
           watchAllSessions,
           alwaysShowLabels,
+          hooksEnabled,
+          hooksInfoShown,
           externalAssetDirectories: config.externalAssetDirectories,
         });
 
@@ -280,6 +371,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.permissionTimers,
           this.webview,
           this.persistAgents,
+          (agent) => this.registerAgentHook(agent),
         );
 
         // Start external session scanning (detects VS Code extension panel sessions)
@@ -537,6 +629,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           }
           // Dismiss JSONL so external scanner doesn't re-adopt it
           dismissedJsonlFiles.set(agent.jsonlFile, Date.now());
+          this.unregisterAgentHook(agent);
           removeAgent(
             id,
             this.agents,
@@ -649,6 +742,10 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   }
 
   dispose() {
+    this.pixelAgentsServer?.stop();
+    this.pixelAgentsServer = null;
+    this.hookEventHandler?.dispose();
+    this.hookEventHandler = null;
     this.layoutWatcher?.dispose();
     this.layoutWatcher = null;
     for (const id of [...this.agents.keys()]) {
