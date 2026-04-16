@@ -94,7 +94,7 @@ function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): s
     `default-src 'none'`,
     `img-src ${cspSource} data: blob:`,
     `script-src ${cspSource} 'nonce-${nonce}'`,
-    `style-src ${cspSource} 'unsafe-inline'`,  // Required for Tailwind
+    `style-src ${cspSource} 'unsafe-inline'`,  // May be required for Tailwind CSS
     `font-src ${cspSource}`,
     `connect-src ${cspSource}`,
   ].join('; ');
@@ -136,23 +136,28 @@ webviewView.webview.options = {
 
 ### Step 3: Verify Vite Build Compatibility
 
-Ensure Vite doesn't use inline scripts that would be blocked:
+Review Vite build output to ensure no CSP-violating patterns:
+
+1. **Check for inline scripts in generated HTML**
+   - Vite may inject inline scripts for module preloading
+   - Use `build.modulePreload: false` if needed
+
+2. **Review CSS handling**
+   - Tailwind CSS is used; may require `'unsafe-inline'` for style-src
+   - Or extract all styles to external files
 
 ```typescript
-// webview-ui/vite.config.ts
+// webview-ui/vite.config.ts - Example CSP-friendly config
 export default defineConfig({
   build: {
-    // Ensure no inline scripts/styles that would violate CSP
+    // Disable module preload to avoid inline scripts
+    modulePreload: false,
     cssCodeSplit: false,
-    rollupOptions: {
-      output: {
-        // External scripts only
-        inlineDynamicImports: false,
-      },
-    },
   },
 });
 ```
+
+**Note**: Test thoroughly after any build configuration changes.
 
 ## Acceptance Criteria
 
