@@ -193,9 +193,9 @@ export function readNewLines(
     const lines = text.split('\n');
     agent.lineBuffer = lines.pop() || '';
 
-    // SEC-011: Truncate line buffer if it's growing too large (prevents memory exhaustion
-    // from malformed JSONL files with no newlines). A legitimate JSONL line from Claude
-    // should never exceed 1MB.
+    // SEC-011: Truncate line buffer if it's growing too large. This prevents memory
+    // exhaustion from malformed JSONL files with no newlines. A legitimate JSONL line
+    // from Claude should never exceed 1MB.
     if (agent.lineBuffer.length > MAX_JSONL_LINE_LENGTH) {
       logger.warn(
         `Watcher: Agent ${agentId} - line buffer exceeded max length (${agent.lineBuffer.length} bytes), truncating`,
