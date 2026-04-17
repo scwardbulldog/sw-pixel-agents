@@ -7,12 +7,23 @@
 | **Finding ID** | SEC-012 |
 | **Severity** | Informational |
 | **Category** | Configuration |
-| **Status** | Open |
+| **Status** | ✅ Resolved |
 | **Priority** | P3 - Long-term (within 90 days) |
+| **Resolution Date** | 2026-04-17 |
 
 ## Description
 
-Debug logging is controlled by the `PIXEL_AGENTS_DEBUG` environment variable, but the current implementation uses opt-out semantics (`!== '0'`) rather than opt-in (`=== '1'`). This means debug logging is enabled by default unless explicitly disabled.
+Debug logging is now controlled through a centralized logger module with proper log levels. The default log level is INFO, and debug mode requires explicit opt-in via `PIXEL_AGENTS_DEBUG=1` or `PIXEL_AGENTS_LOG_LEVEL=DEBUG`.
+
+## Resolution Summary
+
+This issue has been resolved as part of SEC-003 (Structured Logging Module):
+
+1. **Centralized logging** in `src/logger.ts` and `server/src/logger.ts`
+2. **Log levels**: DEBUG, INFO, WARN, ERROR, NONE
+3. **Default level is INFO** (not DEBUG) - production-safe default
+4. **Explicit opt-in for debug**: `PIXEL_AGENTS_DEBUG=1` or `PIXEL_AGENTS_LOG_LEVEL=DEBUG`
+5. **Legacy compatibility**: `PIXEL_AGENTS_DEBUG=0` still works to suppress debug logs
 
 ### Current Implementation
 

@@ -2,32 +2,46 @@
 
 ## Finding Details
 
-| Field | Value |
-|-------|-------|
-| **Finding ID** | SEC-004 |
-| **Severity** | Medium |
-| **CVSS Score** | 4.0 (estimated) |
-| **Category** | Configuration |
-| **Status** | Open |
-| **Priority** | P1 - Immediate (within 7 days) |
+| Field          | Value                          |
+| -------------- | ------------------------------ |
+| **Finding ID** | SEC-004                        |
+| **Severity**   | Medium                         |
+| **CVSS Score** | 4.0 (estimated)                |
+| **Category**   | Configuration                  |
+| **Status**     | Resolved                       |
+| **Priority**   | P1 - Immediate (within 7 days) |
 
 ## Description
 
-The webview does not configure an explicit Content Security Policy (CSP). While VS Code provides default CSP restrictions for webviews, explicitly configuring a CSP is a security best practice that provides defense-in-depth against XSS attacks.
+The webview now configures an explicit Content Security Policy (CSP). This provides defense-in-depth against XSS attacks beyond VS Code's default webview sandboxing.
 
-The current implementation enables scripts but does not specify allowed sources:
+### Implementation
+
+The following security controls have been implemented:
 
 ```typescript
-// src/PixelAgentsViewProvider.ts:333
-webviewView.webview.options = { enableScripts: true };
+// src/PixelAgentsViewProvider.ts
+webviewView.webview.options = {
+  enableScripts: true,
+  localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
+};
+
+// CSP is injected into HTML with:
+const cspContent = [
+  `default-src 'none'`,
+  `img-src ${cspSource} data: blob:`,
+  `script-src ${cspSource} 'nonce-${nonce}'`,
+  `style-src ${cspSource} 'unsafe-inline'`,
+  `font-src ${cspSource}`,
+  `connect-src ${cspSource}`,
+].join('; ');
 ```
 
 ## Affected Files
 
-- `src/PixelAgentsViewProvider.ts:333` - Webview options configuration
-- `src/PixelAgentsViewProvider.ts:964-977` - `getWebviewContent()` function
+- `src/PixelAgentsViewProvider.ts` - Webview options configuration and CSP implementation
 
-### Current Implementation
+### Resolution Details
 
 ```typescript
 function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
@@ -50,17 +64,20 @@ function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): s
 ## Risk Assessment
 
 ### Impact
+
 - **Confidentiality**: Low - VS Code sandbox limits data access
 - **Integrity**: Medium - Potential XSS could modify webview content
 - **Availability**: Low - Limited DoS potential
 
 ### Mitigating Factors
+
 - VS Code provides default CSP for webviews
 - React's virtual DOM helps prevent many XSS vectors
 - No `dangerouslySetInnerHTML` usage found in codebase
 - No `innerHTML` with user data found
 
 ### Overall Risk
+
 Medium - While VS Code provides defaults, explicit CSP is required for enterprise compliance and defense-in-depth.
 
 ## Remediation Steps
@@ -76,7 +93,7 @@ function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): s
 
   // Generate nonce for inline scripts
   const nonce = getNonce();
-  
+
   // Get CSP source for webview resources
   const cspSource = webview.cspSource;
 
@@ -94,7 +111,7 @@ function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): s
     `default-src 'none'`,
     `img-src ${cspSource} data: blob:`,
     `script-src ${cspSource} 'nonce-${nonce}'`,
-    `style-src ${cspSource} 'unsafe-inline'`,  // May be required for Tailwind CSS
+    `style-src ${cspSource} 'unsafe-inline'`, // May be required for Tailwind CSS
     `font-src ${cspSource}`,
     `connect-src ${cspSource}`,
   ].join('; ');
@@ -102,7 +119,7 @@ function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): s
   // Insert CSP before closing </head>
   html = html.replace(
     '</head>',
-    `<meta http-equiv="Content-Security-Policy" content="${cspContent}">\n</head>`
+    `<meta http-equiv="Content-Security-Policy" content="${cspContent}">\n</head>`,
   );
 
   // Add nonce to any inline scripts
@@ -128,9 +145,7 @@ Add `localResourceRoots` restriction:
 ```typescript
 webviewView.webview.options = {
   enableScripts: true,
-  localResourceRoots: [
-    vscode.Uri.joinPath(this.extensionUri, 'dist'),
-  ],
+  localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
 };
 ```
 
@@ -161,22 +176,22 @@ export default defineConfig({
 
 ## Acceptance Criteria
 
-- [ ] CSP meta tag added to webview HTML with:
-  - [ ] `default-src 'none'` (deny by default)
-  - [ ] `script-src` restricted to webview source + nonce
-  - [ ] `style-src` restricted appropriately (may need 'unsafe-inline' for Tailwind)
-  - [ ] `img-src` allows webview source, data:, and blob:
-  - [ ] `font-src` restricted to webview source
-  - [ ] `connect-src` restricted to webview source
-- [ ] Nonce generated per webview instance
-- [ ] `localResourceRoots` configured to restrict resource loading
-- [ ] No CSP violation errors in Developer Tools console
-- [ ] All webview functionality works correctly:
+- [x] CSP meta tag added to webview HTML with:
+  - [x] `default-src 'none'` (deny by default)
+  - [x] `script-src` restricted to webview source + nonce
+  - [x] `style-src` restricted appropriately (uses 'unsafe-inline' for Tailwind)
+  - [x] `img-src` allows webview source, data:, and blob:
+  - [x] `font-src` restricted to webview source
+  - [x] `connect-src` restricted to webview source
+- [x] Nonce generated per webview instance
+- [x] `localResourceRoots` configured to restrict resource loading
+- [ ] No CSP violation errors in Developer Tools console (requires manual testing)
+- [ ] All webview functionality works correctly (requires manual testing):
   - [ ] Canvas rendering
   - [ ] Fonts load correctly
   - [ ] Asset images display
   - [ ] React components function
-- [ ] `docs/SECURITY_ANALYSIS.md` updated to mark as resolved
+- [x] `docs/SECURITY_ANALYSIS.md` updated to mark as resolved
 
 ## Testing Requirements
 
@@ -197,14 +212,14 @@ export default defineConfig({
 
 ### Directive Meanings
 
-| Directive | Purpose |
-|-----------|---------|
+| Directive     | Purpose                       |
+| ------------- | ----------------------------- |
 | `default-src` | Fallback for other directives |
-| `script-src` | Valid script sources |
-| `style-src` | Valid stylesheet sources |
-| `img-src` | Valid image sources |
-| `font-src` | Valid font sources |
-| `connect-src` | Valid fetch/XHR targets |
+| `script-src`  | Valid script sources          |
+| `style-src`   | Valid stylesheet sources      |
+| `img-src`     | Valid image sources           |
+| `font-src`    | Valid font sources            |
+| `connect-src` | Valid fetch/XHR targets       |
 
 ### VS Code Webview CSP
 
