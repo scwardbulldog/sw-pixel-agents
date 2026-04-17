@@ -31,7 +31,7 @@ export function readLayoutFromFile(): Record<string, unknown> | null {
       console.warn('[Pixel Agents] Layout file failed schema validation');
       return null;
     }
-    return layout as Record<string, unknown>;
+    return layout;
   } catch (err) {
     console.error('[Pixel Agents] Failed to read layout file:', err);
     return null;
@@ -150,7 +150,7 @@ export function watchLayoutFile(
         return;
       }
       console.log('[Pixel Agents] External layout change detected');
-      onExternalChange(layout as Record<string, unknown>);
+      onExternalChange(layout);
     } catch (err) {
       console.error('[Pixel Agents] Error checking layout file:', err);
     }
