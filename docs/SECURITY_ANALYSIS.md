@@ -70,7 +70,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 | ---------- | -------- | --------------------------- | ----------- | --------- |
 | SEC-001    | Medium   | Input Validation            | 5.5         | Resolved  |
 | SEC-002    | Medium   | Path Traversal              | 5.0         | Mitigated |
-| SEC-003    | Medium   | Information Disclosure      | 4.5         | Open      |
+| SEC-003    | Medium   | Information Disclosure      | 4.5         | Resolved  |
 | SEC-004    | Medium   | Insufficient CSP            | 4.0         | Resolved  |
 | SEC-005    | Low      | Token Exposure              | 3.5         | Mitigated |
 | SEC-006    | Low      | Insecure File Permissions   | 3.0         | Mitigated |
@@ -79,7 +79,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 | SEC-009    | Low      | Unvalidated Redirects       | 2.0         | Open      |
 | SEC-010    | Low      | Dependency Versions         | 2.0         | Monitored |
 | SEC-011    | Low      | Missing Input Length Limits | 2.0         | Partial   |
-| SEC-012    | Info     | Console Logging             | 1.0         | Open      |
+| SEC-012    | Info     | Console Logging             | 1.0         | Resolved  |
 | SEC-013    | Info     | Debug Mode                  | 1.0         | Open      |
 | SEC-014    | Info     | External Asset Loading      | 1.0         | Open      |
 | SEC-015    | Info     | Missing Security Headers    | 1.0         | N/A       |

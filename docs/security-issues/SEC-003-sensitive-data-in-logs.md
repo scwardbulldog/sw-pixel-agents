@@ -8,8 +8,9 @@
 | **Severity** | Medium |
 | **CVSS Score** | 4.5 (estimated) |
 | **Category** | Information Disclosure |
-| **Status** | Open |
+| **Status** | ✅ Resolved |
 | **Priority** | P2 - Short-term (within 30 days) |
+| **Resolution Date** | 2026-04-17 |
 
 ## Description
 
@@ -21,6 +22,19 @@ The extension logs detailed diagnostic information to the VS Code console, inclu
 - Agent IDs and states
 
 In shared or logged environments (enterprise logging systems, shared development machines, screen sharing sessions), these log messages could inadvertently expose sensitive information about the user's file system structure, project names, and session activity.
+
+## Resolution Summary
+
+This issue has been resolved by implementing a structured logging module:
+
+1. **Created centralized logger modules** (`src/logger.ts` and `server/src/logger.ts`)
+2. **Implemented log levels**: DEBUG, INFO, WARN, ERROR, NONE
+3. **Implemented path sanitization**: replaces home directory paths with `~`
+4. **Implemented session ID sanitization**: partial redaction (keeps first 8 chars)
+5. **Configurable via environment variable**: `PIXEL_AGENTS_LOG_LEVEL`
+6. **Production mode defaults** to WARN level with sanitization enabled
+7. **Legacy `PIXEL_AGENTS_DEBUG`** environment variable supported for backwards compatibility
+8. **All console.log calls replaced** with logger calls throughout the codebase
 
 ## Affected Files
 
