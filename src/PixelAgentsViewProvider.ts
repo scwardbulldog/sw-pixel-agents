@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -332,7 +333,11 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
 
   resolveWebviewView(webviewView: vscode.WebviewView) {
     this.webviewView = webviewView;
-    webviewView.webview.options = { enableScripts: true };
+    webviewView.webview.options = {
+      enableScripts: true,
+      // Restrict resource loading to only the dist directory
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
+    };
     webviewView.webview.html = getWebviewContent(webviewView.webview, this.extensionUri);
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
@@ -578,9 +583,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             for (const folder of wsFolders) {
               const folderProjectDir = getProjectDirPath(folder.uri.fsPath);
               if (folderProjectDir && folderProjectDir !== projectDir) {
-                logger.debug(
-                  `Registering additional project dir: ${folderProjectDir}`,
-                );
+                logger.debug(`Registering additional project dir: ${folderProjectDir}`);
                 ensureProjectScan(
                   folderProjectDir,
                   this.knownJsonlFiles,
@@ -963,17 +966,58 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
+/**
+ * Generate a cryptographically secure nonce for Content Security Policy.
+ * Uses Node.js crypto.randomBytes() for security-grade randomness.
+ */
+function getNonce(): string {
+  return crypto.randomBytes(16).toString('base64');
+}
+
 function getWebviewContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const distPath = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
   const indexPath = vscode.Uri.joinPath(distPath, 'index.html').fsPath;
 
+  // Generate nonce for inline scripts
+  const nonce = getNonce();
+
+  // Get CSP source for webview resources
+  const cspSource = webview.cspSource;
+
   let html = fs.readFileSync(indexPath, 'utf-8');
 
+  // Replace asset URLs with webview-safe URIs
   html = html.replace(/(href|src)="\.\/([^"]+)"/g, (_match, attr, filePath) => {
     const fileUri = vscode.Uri.joinPath(distPath, filePath);
     const webviewUri = webview.asWebviewUri(fileUri);
     return `${attr}="${webviewUri}"`;
   });
+
+  // Build Content Security Policy
+  // - default-src 'none': deny by default (defense-in-depth)
+  // - img-src: allow webview source, data: URIs (for canvas), and blob: (for dynamic images)
+  // - script-src: allow webview source + nonce for any inline scripts
+  // - style-src: allow webview source + 'unsafe-inline' (required for Tailwind CSS)
+  // - font-src: allow webview source (for custom fonts)
+  // - connect-src: allow webview source (for fetch/XHR to extension)
+  const cspContent = [
+    `default-src 'none'`,
+    `img-src ${cspSource} data: blob:`,
+    `script-src ${cspSource} 'nonce-${nonce}'`,
+    `style-src ${cspSource} 'unsafe-inline'`,
+    `font-src ${cspSource}`,
+    `connect-src ${cspSource}`,
+  ].join('; ');
+
+  // Insert CSP meta tag before closing </head>
+  html = html.replace(
+    '</head>',
+    `<meta http-equiv="Content-Security-Policy" content="${cspContent}">\n</head>`,
+  );
+
+  // Add nonce to script tags that don't already have one
+  // This regex matches <script followed by whitespace or > but not if nonce= is already present
+  html = html.replace(/<script(?![^>]*\bnonce=)(\s|>)/g, `<script nonce="${nonce}"$1`);
 
   return html;
 }

@@ -25,13 +25,13 @@ The Pixel Agents extension is a VS Code extension that provides a pixel art visu
 
 ### Components
 
-| Component | Technology | Security Boundary |
-|-----------|------------|-------------------|
-| Extension Backend | Node.js, VS Code API | VS Code Extension Host |
-| HTTP Server | Node.js `http` module | localhost only (127.0.0.1) |
-| Webview Frontend | React, TypeScript | VS Code Webview Sandbox |
-| File Watchers | Node.js `fs` module | Local filesystem |
-| Hook Script | Node.js | Claude Code process |
+| Component         | Technology            | Security Boundary          |
+| ----------------- | --------------------- | -------------------------- |
+| Extension Backend | Node.js, VS Code API  | VS Code Extension Host     |
+| HTTP Server       | Node.js `http` module | localhost only (127.0.0.1) |
+| Webview Frontend  | React, TypeScript     | VS Code Webview Sandbox    |
+| File Watchers     | Node.js `fs` module   | Local filesystem           |
+| Hook Script       | Node.js               | Claude Code process        |
 
 ### Data Flow
 
@@ -66,24 +66,24 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 
 ## Risk Assessment Matrix
 
-| Finding ID | Severity | Category | CVSS (Est.) | Status |
-|------------|----------|----------|-------------|--------|
-| SEC-001 | Medium | Input Validation | 5.5 | Resolved |
-| SEC-002 | Medium | Path Traversal | 5.0 | Mitigated |
-| SEC-003 | Medium | Information Disclosure | 4.5 | Open |
-| SEC-004 | Medium | Insufficient CSP | 4.0 | Open |
-| SEC-005 | Low | Token Exposure | 3.5 | Mitigated |
-| SEC-006 | Low | Insecure File Permissions | 3.0 | Mitigated |
-| SEC-007 | Low | Missing Rate Limiting | 3.0 | Open |
-| SEC-008 | Low | Error Information Leakage | 2.5 | Open |
-| SEC-009 | Low | Unvalidated Redirects | 2.0 | Open |
-| SEC-010 | Low | Dependency Versions | 2.0 | Monitored |
-| SEC-011 | Low | Missing Input Length Limits | 2.0 | Partial |
-| SEC-012 | Info | Console Logging | 1.0 | Open |
-| SEC-013 | Info | Debug Mode | 1.0 | Open |
-| SEC-014 | Info | External Asset Loading | 1.0 | Open |
-| SEC-015 | Info | Missing Security Headers | 1.0 | N/A |
-| SEC-016 | Info | CORS Not Configured | 1.0 | N/A |
+| Finding ID | Severity | Category                    | CVSS (Est.) | Status    |
+| ---------- | -------- | --------------------------- | ----------- | --------- |
+| SEC-001    | Medium   | Input Validation            | 5.5         | Resolved  |
+| SEC-002    | Medium   | Path Traversal              | 5.0         | Mitigated |
+| SEC-003    | Medium   | Information Disclosure      | 4.5         | Open      |
+| SEC-004    | Medium   | Insufficient CSP            | 4.0         | Resolved  |
+| SEC-005    | Low      | Token Exposure              | 3.5         | Mitigated |
+| SEC-006    | Low      | Insecure File Permissions   | 3.0         | Mitigated |
+| SEC-007    | Low      | Missing Rate Limiting       | 3.0         | Open      |
+| SEC-008    | Low      | Error Information Leakage   | 2.5         | Open      |
+| SEC-009    | Low      | Unvalidated Redirects       | 2.0         | Open      |
+| SEC-010    | Low      | Dependency Versions         | 2.0         | Monitored |
+| SEC-011    | Low      | Missing Input Length Limits | 2.0         | Partial   |
+| SEC-012    | Info     | Console Logging             | 1.0         | Open      |
+| SEC-013    | Info     | Debug Mode                  | 1.0         | Open      |
+| SEC-014    | Info     | External Asset Loading      | 1.0         | Open      |
+| SEC-015    | Info     | Missing Security Headers    | 1.0         | N/A       |
+| SEC-016    | Info     | CORS Not Configured         | 1.0         | N/A       |
 
 ---
 
@@ -92,6 +92,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 ### SEC-001: JSON Parsing Without Schema Validation (Medium - Resolved)
 
 **Location**: Multiple files
+
 - `src/transcriptParser.ts:102`
 - `src/layoutPersistence.ts:28`
 - `src/configPersistence.ts:24`
@@ -100,6 +101,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 **Description**: JSON data is parsed with Zod schema validation. All external JSON sources (JSONL transcript files, layout files, config files, imported layouts) are validated against defined schemas before processing.
 
 **Resolution**:
+
 - Added Zod dependency for runtime schema validation
 - Created schemas in `src/schemas/`:
   - `transcript.ts` - TranscriptRecordSchema for JSONL records
@@ -114,6 +116,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 - Added comprehensive unit tests in `server/__tests__/schemas.test.ts`
 
 **Code Example** (After):
+
 ```typescript
 // src/transcriptParser.ts
 const parsed = JSON.parse(line);
@@ -135,6 +138,7 @@ if (!record) {
 **Description**: External asset directories are user-configurable. The code includes path traversal protection but should be reviewed.
 
 **Code Example** (Mitigation in place):
+
 ```typescript
 const resolvedAsset = path.resolve(assetPath);
 const resolvedDir = path.resolve(itemDir);
@@ -149,6 +153,7 @@ if (!resolvedAsset.startsWith(resolvedDir + path.sep) && resolvedAsset !== resol
 **Current Status**: MITIGATED - Path traversal protection is implemented.
 
 **Recommendation**:
+
 - Consider using `path.relative()` and checking for `..` segments
 - Add additional validation for symlinks on Unix systems
 
@@ -161,12 +166,14 @@ if (!resolvedAsset.startsWith(resolvedDir + path.sep) && resolvedAsset !== resol
 **Description**: The extension logs detailed diagnostic information including file paths, session IDs, and project directories to the console.
 
 **Risk**: In shared or logged environments, these messages could expose:
+
 - User home directory paths
 - Project structures
 - Session identifiers
 - File system layout
 
 **Resolution**:
+
 - Created structured logging module (`src/logger.ts` and `server/src/logger.ts`)
 - Implemented log levels: DEBUG, INFO, WARN, ERROR, NONE
 - Implemented path sanitization (home directory → `~`)
@@ -179,6 +186,7 @@ if (!resolvedAsset.startsWith(resolvedDir + path.sep) && resolvedAsset !== resol
   - Server: `server/src/server.ts`, `server/src/hookEventHandler.ts`, etc.
 
 **Code Example** (After):
+
 ```typescript
 // src/logger.ts
 export const LogLevel = {
@@ -195,7 +203,7 @@ class Logger {
     // Replace UUIDs with partial redaction
     return sanitized;
   }
-  
+
   debug(message: string, ...args: unknown[]): void {
     if (this.config.level <= LogLevel.DEBUG) {
       console.log(this.config.prefix, this.sanitize(message), ...);
@@ -208,25 +216,46 @@ class Logger {
 
 ---
 
-### SEC-004: Missing Content Security Policy (Medium)
+### SEC-004: Missing Content Security Policy (Medium - Resolved)
 
 **Location**: `src/PixelAgentsViewProvider.ts` (webview configuration)
 
-**Description**: No explicit Content Security Policy (CSP) is configured for the webview. VS Code provides default CSP restrictions, but explicit configuration is best practice.
+**Description**: The webview now configures an explicit Content Security Policy (CSP) that provides defense-in-depth against XSS attacks.
 
-**Code Example**:
+**Resolution**:
+
+- Added `getNonce()` function to generate cryptographically secure nonces for inline scripts
+- Added CSP meta tag injection in `getWebviewContent()` with the following directives:
+  - `default-src 'none'` (deny by default)
+  - `img-src ${cspSource} data: blob:` (allow webview source, data URIs for canvas, blob for dynamic images)
+  - `script-src ${cspSource} 'nonce-${nonce}'` (allow webview source + nonce for inline scripts)
+  - `style-src ${cspSource} 'unsafe-inline'` (allow webview source + inline styles for Tailwind CSS)
+  - `font-src ${cspSource}` (allow webview source for custom fonts)
+  - `connect-src ${cspSource}` (allow webview source for fetch/XHR)
+- Added `localResourceRoots` restriction to limit resource loading to the `dist` directory
+- Script tags are automatically tagged with nonces for CSP compliance
+
+**Code Example** (After):
+
 ```typescript
-// src/PixelAgentsViewProvider.ts:333
-webviewView.webview.options = { enableScripts: true };
-// No CSP meta tag in webview HTML
+// src/PixelAgentsViewProvider.ts
+webviewView.webview.options = {
+  enableScripts: true,
+  localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
+};
+
+// CSP is injected into HTML with:
+const cspContent = [
+  `default-src 'none'`,
+  `img-src ${cspSource} data: blob:`,
+  `script-src ${cspSource} 'nonce-${nonce}'`,
+  `style-src ${cspSource} 'unsafe-inline'`,
+  `font-src ${cspSource}`,
+  `connect-src ${cspSource}`,
+].join('; ');
 ```
 
-**Risk**: While VS Code sandboxes webviews, an explicit CSP would provide defense-in-depth against XSS attacks if vulnerabilities exist in the React application.
-
-**Recommendation**:
-- Add explicit CSP headers using `webview.cspSource`
-- Restrict script sources to `'self'` and necessary VS Code sources
-- Disallow inline scripts if possible
+**Current Status**: RESOLVED
 
 ---
 
@@ -237,6 +266,7 @@ webviewView.webview.options = { enableScripts: true };
 **Description**: The HTTP server authentication token is stored in `~/.pixel-agents/server.json`.
 
 **Code Example** (Mitigation in place):
+
 ```typescript
 // Atomic write with restricted permissions
 const tmpPath = filePath + '.tmp';
@@ -247,6 +277,7 @@ fs.renameSync(tmpPath, filePath);
 **Current Status**: MITIGATED - File is created with mode 0o600 (user read/write only).
 
 **Recommendation**:
+
 - Verify directory is also created with restricted permissions (currently 0o700 - correct)
 - Consider using OS keychain for token storage in enterprise environments
 
@@ -259,6 +290,7 @@ fs.renameSync(tmpPath, filePath);
 **Description**: Directories for configuration files are created with appropriate permissions.
 
 **Code Example**:
+
 ```typescript
 fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 ```
@@ -276,6 +308,7 @@ fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 **Risk**: Denial of service attack from local processes.
 
 **Recommendation**:
+
 - Implement simple rate limiting (e.g., max 100 requests/second per session)
 - Add connection timeout (currently 5 seconds - good)
 - Consider request queue limits
@@ -289,6 +322,7 @@ fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 **Description**: Some error messages may leak internal implementation details.
 
 **Code Example**:
+
 ```typescript
 // server/src/server.ts:167-169
 res.writeHead(401);
@@ -308,6 +342,7 @@ res.end('unauthorized');
 **Description**: The extension opens file URIs using VS Code's openExternal API.
 
 **Code Example**:
+
 ```typescript
 vscode.env.openExternal(vscode.Uri.file(projectDir));
 ```
@@ -325,11 +360,13 @@ vscode.env.openExternal(vscode.Uri.file(projectDir));
 **Description**: Dependencies are managed with npm and automated updates via Dependabot.
 
 **Positive Controls**:
+
 - Dependabot enabled for weekly updates
 - `npm audit` runs in CI at moderate level
 - All dependencies are well-known, maintained packages
 
 **Dependencies Summary**:
+
 - React 19.2.0
 - TypeScript 5.9.x
 - esbuild 0.28.x
@@ -337,6 +374,7 @@ vscode.env.openExternal(vscode.Uri.file(projectDir));
 - pngjs 7.0.0
 
 **Recommendation**:
+
 - Continue monitoring for vulnerabilities
 - Consider using `npm audit --audit-level=high` for production builds
 - Pin exact versions for production builds
@@ -350,6 +388,7 @@ vscode.env.openExternal(vscode.Uri.file(projectDir));
 **Description**: The HTTP server implements body size limits.
 
 **Code Example** (Control in place):
+
 ```typescript
 const MAX_HOOK_BODY_SIZE = 65536; // 64KB limit
 
@@ -376,6 +415,7 @@ req.on('data', (chunk: Buffer) => {
 **Description**: Debug logging is controlled by `PIXEL_AGENTS_DEBUG` environment variable.
 
 **Code Example**:
+
 ```typescript
 const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 ```
@@ -425,9 +465,9 @@ const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
    - ~~Validate imported layouts before processing~~
    - ~~Validate JSONL records before accessing properties~~
 
-2. **Configure Explicit CSP**
-   - Add Content-Security-Policy to webview HTML
-   - Use VS Code's `webview.cspSource` helper
+2. ~~**Configure Explicit CSP**~~ ✅ COMPLETED
+   - ~~Add Content-Security-Policy to webview HTML~~
+   - ~~Use VS Code's `webview.cspSource` helper~~
 
 ### Short-Term Actions (Priority 2)
 
@@ -458,24 +498,24 @@ const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
 ### Positive Security Controls
 
-| Control | Location | Effectiveness |
-|---------|----------|---------------|
-| JSON Schema Validation (Zod) | src/schemas/*.ts | ✅ Good |
-| Auth Token for HTTP API | server/src/server.ts | ✅ Good |
-| Timing-Safe Token Comparison | server/src/server.ts:166 | ✅ Good |
-| Localhost-Only HTTP Server | server/src/server.ts:84 | ✅ Good |
-| File Permission Restrictions | server/src/server.ts:237,241 | ✅ Good |
-| Path Traversal Prevention | src/assetLoader.ts:139-147 | ✅ Good |
-| Body Size Limits | server/src/server.ts:182-193 | ✅ Good |
-| Atomic File Writes | Multiple locations | ✅ Good |
-| Provider ID Validation | server/src/server.ts:174 | ✅ Good |
-| VS Code Webview Sandbox | Inherent | ✅ Good |
-| No eval() or innerHTML with user data | Throughout codebase | ✅ Good |
-| Dependabot Updates | .github/dependabot.yml | ✅ Good |
-| npm audit in CI | .github/workflows/ci.yml | ✅ Good |
-| Gitleaks Configuration | .gitleaks.toml | ✅ Good |
-| TypeScript Strict Mode | tsconfig.json | ✅ Good |
-| ESLint Security Rules | eslint.config.mjs | ⚠️ Partial |
+| Control                               | Location                     | Effectiveness |
+| ------------------------------------- | ---------------------------- | ------------- |
+| JSON Schema Validation (Zod)          | src/schemas/\*.ts            | ✅ Good       |
+| Auth Token for HTTP API               | server/src/server.ts         | ✅ Good       |
+| Timing-Safe Token Comparison          | server/src/server.ts:166     | ✅ Good       |
+| Localhost-Only HTTP Server            | server/src/server.ts:84      | ✅ Good       |
+| File Permission Restrictions          | server/src/server.ts:237,241 | ✅ Good       |
+| Path Traversal Prevention             | src/assetLoader.ts:139-147   | ✅ Good       |
+| Body Size Limits                      | server/src/server.ts:182-193 | ✅ Good       |
+| Atomic File Writes                    | Multiple locations           | ✅ Good       |
+| Provider ID Validation                | server/src/server.ts:174     | ✅ Good       |
+| VS Code Webview Sandbox               | Inherent                     | ✅ Good       |
+| No eval() or innerHTML with user data | Throughout codebase          | ✅ Good       |
+| Dependabot Updates                    | .github/dependabot.yml       | ✅ Good       |
+| npm audit in CI                       | .github/workflows/ci.yml     | ✅ Good       |
+| Gitleaks Configuration                | .gitleaks.toml               | ✅ Good       |
+| TypeScript Strict Mode                | tsconfig.json                | ✅ Good       |
+| ESLint Security Rules                 | eslint.config.mjs            | ⚠️ Partial    |
 
 ### Security-Related CI Checks
 
@@ -490,21 +530,21 @@ const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
 ### External Attack Surface
 
-| Entry Point | Protocol | Risk Level |
-|-------------|----------|------------|
-| Webview postMessage | VS Code IPC | Low |
-| HTTP Hook Endpoint | HTTP (localhost) | Low |
-| File System (JSONL) | Local FS | Low |
-| File System (Config) | Local FS | Low |
-| File System (Assets) | Local FS | Low |
+| Entry Point          | Protocol         | Risk Level |
+| -------------------- | ---------------- | ---------- |
+| Webview postMessage  | VS Code IPC      | Low        |
+| HTTP Hook Endpoint   | HTTP (localhost) | Low        |
+| File System (JSONL)  | Local FS         | Low        |
+| File System (Config) | Local FS         | Low        |
+| File System (Assets) | Local FS         | Low        |
 
 ### Internal Attack Surface
 
-| Component | Risk Level | Notes |
-|-----------|------------|-------|
-| JSON Parsing | Medium | Multiple entry points |
-| File I/O | Low | Restricted to known paths |
-| Terminal Creation | Low | VS Code API sandboxed |
+| Component         | Risk Level | Notes                     |
+| ----------------- | ---------- | ------------------------- |
+| JSON Parsing      | Medium     | Multiple entry points     |
+| File I/O          | Low        | Restricted to known paths |
+| Terminal Creation | Low        | VS Code API sandboxed     |
 
 ---
 
@@ -529,26 +569,26 @@ const debug = process.env.PIXEL_AGENTS_DEBUG !== '0';
 
 ### STRIDE Analysis
 
-| Threat | Applicable | Mitigation |
-|--------|------------|------------|
-| **S**poofing | Low | Auth token for HTTP |
-| **T**ampering | Medium | File integrity not verified |
-| **R**epudiation | Low | Not applicable |
-| **I**nformation Disclosure | Medium | Logging concerns |
-| **D**enial of Service | Low | Body size limits |
-| **E**levation of Privilege | Low | VS Code sandbox |
+| Threat                     | Applicable | Mitigation                  |
+| -------------------------- | ---------- | --------------------------- |
+| **S**poofing               | Low        | Auth token for HTTP         |
+| **T**ampering              | Medium     | File integrity not verified |
+| **R**epudiation            | Low        | Not applicable              |
+| **I**nformation Disclosure | Medium     | Logging concerns            |
+| **D**enial of Service      | Low        | Body size limits            |
+| **E**levation of Privilege | Low        | VS Code sandbox             |
 
 ---
 
 ## Document Information
 
-| Field | Value |
-|-------|-------|
-| Version | 1.0 |
-| Date | 2024-01-XX |
-| Classification | Internal |
-| Review Cycle | Quarterly |
+| Field          | Value      |
+| -------------- | ---------- |
+| Version        | 1.0        |
+| Date           | 2024-01-XX |
+| Classification | Internal   |
+| Review Cycle   | Quarterly  |
 
 ---
 
-*This security analysis was generated by automated code review tools and should be verified by security professionals before making enterprise deployment decisions.*
+_This security analysis was generated by automated code review tools and should be verified by security professionals before making enterprise deployment decisions._
