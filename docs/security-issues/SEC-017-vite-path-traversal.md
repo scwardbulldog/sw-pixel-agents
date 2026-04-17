@@ -60,7 +60,7 @@ Updated dependencies to patched versions:
    - "vitest": "^3.2.1"
    + "vitest": "^3.2.2"
    ```
-   (vitest 3.2.2 includes vite 7.3.2+ which fixes the vulnerability)
+   (vitest 3.2.2+ bundles vite 7.3.2 as a dependency, which includes the fix - verified via `npm ls vite`)
 
 2. **webview-ui/package.json**:
    ```diff
