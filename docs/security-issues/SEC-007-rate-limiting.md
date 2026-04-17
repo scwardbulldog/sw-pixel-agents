@@ -263,15 +263,15 @@ private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void
 
 ## Acceptance Criteria
 
-- [ ] Rate limiter module implemented with configurable limits
-- [ ] Hook endpoint returns 429 when rate limited
-- [ ] Rate limit headers included in responses (`X-RateLimit-*`)
-- [ ] `Retry-After` header included in 429 responses
-- [ ] Rate limiter properly cleaned up on server stop
-- [ ] Constants added for rate limit configuration
-- [ ] Unit tests added for rate limiter
-- [ ] No impact on normal operation (100 req/sec is generous)
-- [ ] `docs/SECURITY_ANALYSIS.md` updated to mark as resolved
+- [x] Rate limiter module implemented with configurable limits
+- [x] Hook endpoint returns 429 when rate limited
+- [x] Rate limit headers included in responses (`X-RateLimit-*`)
+- [x] `Retry-After` header included in 429 responses
+- [x] Rate limiter properly cleaned up on server stop
+- [x] Constants added for rate limit configuration
+- [x] Unit tests added for rate limiter
+- [x] No impact on normal operation (100 req/sec is generous)
+- [x] `docs/SECURITY_ANALYSIS.md` updated to mark as resolved
 
 ## Testing Requirements
 

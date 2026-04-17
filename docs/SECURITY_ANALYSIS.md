@@ -54,7 +54,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 
 ### Critical Findings: 0
 
-### High Severity Findings: 0
+### High Severity Findings: 1 (Resolved)
 
 ### Medium Severity Findings: 4
 
@@ -84,6 +84,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 | SEC-014    | Info     | External Asset Loading      | 1.0         | Accepted  |
 | SEC-015    | Info     | Missing Security Headers    | 1.0         | N/A       |
 | SEC-016    | Info     | CORS Not Configured         | 1.0         | N/A       |
+| SEC-017    | High     | Vite Path Traversal (CVE)   | 7.5         | Resolved  |
 
 ---
 
@@ -388,6 +389,9 @@ No user-controlled input flows into file URIs.
 - esbuild 0.28.x
 - Playwright 1.58.x (dev only)
 - pngjs 7.0.0
+- Vite 8.0.5+ (webview-ui)
+- Vitest 3.2.2+ (server tests)
+- Zod 3.25.x (runtime validation)
 
 **Current Status**: VERIFIED - Dependency security is actively monitored.
 
@@ -482,6 +486,34 @@ if (line.length > MAX_JSONL_LINE_LENGTH) {
 ### SEC-016: CORS Configuration (Informational - N/A)
 
 **Description**: No CORS configuration needed as server only accepts localhost connections.
+
+---
+
+### SEC-017: Vite Path Traversal Vulnerabilities (High - Resolved)
+
+**Location**: `server/package.json`, `webview-ui/package.json`
+
+**Description**: High severity vulnerabilities were identified in the Vite dependency:
+- GHSA-4w7w-66w2-5vf9: Path Traversal in Optimized Deps `.map` Handling (CVE-2026-39365)
+- GHSA-v2wj-q39q-566r: `server.fs.deny` bypassed with queries
+- GHSA-p9ff-h696-f583: Arbitrary File Read via Vite Dev Server WebSocket
+
+**Risk**: These vulnerabilities could allow attackers to read arbitrary files during development. While the impact in production is limited (Vite is a dev dependency), development environments could be compromised.
+
+**Resolution**:
+- Updated Vite in `server/package.json` (via vitest): 7.3.1 → 7.3.2+ (fixed in vitest 3.2.2)
+- Updated Vite in `webview-ui/package.json`: 8.0.3 → 8.0.5
+
+**Verification**:
+```bash
+cd server && npm audit
+# found 0 vulnerabilities
+
+cd webview-ui && npm audit
+# found 0 vulnerabilities
+```
+
+**Current Status**: RESOLVED - All Vite vulnerabilities patched.
 
 ---
 
