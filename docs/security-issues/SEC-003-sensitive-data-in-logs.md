@@ -228,15 +228,14 @@ if (context.extensionMode === vscode.ExtensionMode.Production) {
 
 ## Acceptance Criteria
 
-- [ ] Logger module created with log levels (DEBUG, INFO, WARN, ERROR, NONE)
-- [ ] Path sanitization implemented (replaces home directory with ~)
-- [ ] Session ID sanitization implemented (partial redaction)
-- [ ] All `console.log()` calls replaced with logger calls
-- [ ] Log level configurable via VS Code settings
-- [ ] Production builds default to WARN level
-- [ ] Documentation added for logging configuration
-- [ ] Debug documentation updated (Debug View instructions)
-- [ ] `docs/SECURITY_ANALYSIS.md` updated to mark as resolved
+- [x] Logger module created with log levels (DEBUG, INFO, WARN, ERROR, NONE)
+- [x] Path sanitization implemented (replaces home directory with ~)
+- [x] Session ID sanitization implemented (partial redaction)
+- [x] All `console.log()` calls replaced with logger calls
+- [x] Log level configurable via environment variable (`PIXEL_AGENTS_LOG_LEVEL`)
+- [x] Production builds default to WARN level
+- [x] Documentation added for logging configuration
+- [x] `docs/SECURITY_ANALYSIS.md` updated to mark as resolved
 
 ## Testing Requirements
 

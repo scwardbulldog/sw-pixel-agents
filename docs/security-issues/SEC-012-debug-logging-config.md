@@ -128,11 +128,11 @@ if (debugEnv === '1') {
 
 ## Acceptance Criteria
 
-- [ ] Debug mode is opt-in (requires explicit `PIXEL_AGENTS_DEBUG=1`)
-- [ ] All debug flag checks use consistent logic
-- [ ] Default behavior (no env var) is non-debug mode
-- [ ] Documentation updated for debug mode usage
-- [ ] `docs/SECURITY_ANALYSIS.md` updated to mark as resolved
+- [x] Debug mode is opt-in (requires explicit `PIXEL_AGENTS_DEBUG=1`)
+- [x] All debug flag checks use consistent logic
+- [x] Default behavior (no env var) is non-debug mode (INFO level)
+- [x] Documentation updated for debug mode usage
+- [x] `docs/SECURITY_ANALYSIS.md` updated to mark as resolved
 
 ## Testing Requirements
 
