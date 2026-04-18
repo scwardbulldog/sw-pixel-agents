@@ -22,6 +22,7 @@ import { OfficeState } from './office/engine/officeState.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { EditTool } from './office/types.js';
 import { isBrowserRuntime } from './runtime.js';
+import { isStandaloneMode } from './standaloneClient.js';
 import { vscode } from './vscodeApi.js';
 
 // Game state lives outside React — updated imperatively by message handlers
@@ -36,10 +37,10 @@ function getOfficeState(): OfficeState {
 }
 
 function App() {
-  // Browser runtime (dev or static dist): dispatch mock messages after the
-  // useExtensionMessages listener has been registered.
+  // Browser dev mode only: dispatch mock messages after the useExtensionMessages
+  // listener has been registered. Skip in standalone mode (server sends real data).
   useEffect(() => {
-    if (isBrowserRuntime) {
+    if (isBrowserRuntime && !isStandaloneMode()) {
       void import('./browserMock.js').then(({ dispatchMockMessages }) => dispatchMockMessages());
     }
   }, []);

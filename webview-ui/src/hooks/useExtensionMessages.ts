@@ -9,6 +9,7 @@ import { setCharacterTemplates } from '../office/sprites/spriteData.js';
 import { extractToolName } from '../office/toolUtils.js';
 import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
+import { isStandaloneMode, signalReady } from '../standaloneClient.js';
 import { vscode } from '../vscodeApi.js';
 
 export type ProviderId = 'claude' | 'copilot';
@@ -538,6 +539,12 @@ export function useExtensionMessages(
       }
     };
     window.addEventListener('message', handler);
+
+    // In standalone mode, signal that we're ready to receive queued messages
+    if (isStandaloneMode()) {
+      signalReady();
+    }
+
     vscode.postMessage({ type: 'webviewReady' });
     return () => window.removeEventListener('message', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps

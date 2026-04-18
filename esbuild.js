@@ -55,6 +55,36 @@ function buildHooks() {
 }
 
 /**
+ * Bundle standalone CLI to server/dist/cli.js via esbuild.
+ * Produces a self-contained CJS file that can run without VS Code.
+ */
+function buildCli() {
+  const entry = path.join(__dirname, 'server', 'src', 'cli.ts');
+  if (!fs.existsSync(entry)) return;
+  require('esbuild').buildSync({
+    entryPoints: [entry],
+    bundle: true,
+    platform: 'node',
+    target: 'node18',
+    format: 'cjs',
+    outdir: path.join(__dirname, 'server', 'dist'),
+    banner: { js: '#!/usr/bin/env node' },
+    external: [], // Bundle everything, no external dependencies
+  });
+  // Copy hook script next to CLI for standalone distribution
+  const hookSrc = path.join(__dirname, 'dist', 'hooks', 'claude-hook.js');
+  const hookDest = path.join(__dirname, 'server', 'dist', 'hooks', 'claude-hook.js');
+  const hookDir = path.dirname(hookDest);
+  if (fs.existsSync(hookSrc)) {
+    if (!fs.existsSync(hookDir)) {
+      fs.mkdirSync(hookDir, { recursive: true });
+    }
+    fs.copyFileSync(hookSrc, hookDest);
+  }
+  console.log('✓ Built CLI → server/dist/cli.js');
+}
+
+/**
  * @type {import('esbuild').Plugin}
  */
 const esbuildProblemMatcherPlugin = {
@@ -99,6 +129,7 @@ async function main() {
     // Copy assets and hooks after build
     copyAssets();
     buildHooks();
+    buildCli();
   }
 }
 
