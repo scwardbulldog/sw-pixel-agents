@@ -126,3 +126,17 @@ export async function clickAddAgent(frame: Frame): Promise<void> {
   await expect(btn).toBeVisible({ timeout: WEBVIEW_TIMEOUT_MS });
   await btn.click();
 }
+
+/**
+ * Click "+ Agent" and then select "Copilot CLI" from the provider dropdown.
+ */
+export async function clickAddCopilotAgent(frame: Frame): Promise<void> {
+  const btn = frame.locator('button', { hasText: '+ Agent' });
+  await expect(btn).toBeVisible({ timeout: WEBVIEW_TIMEOUT_MS });
+  await btn.click();
+
+  // Wait for and click the Copilot CLI option in the dropdown
+  const copilotOption = frame.locator('button', { hasText: 'Copilot CLI' });
+  await expect(copilotOption).toBeVisible({ timeout: 5_000 });
+  await copilotOption.click();
+}

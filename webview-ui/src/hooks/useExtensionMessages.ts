@@ -11,6 +11,8 @@ import type { OfficeLayout, ToolActivity } from '../office/types.js';
 import { setWallSprites } from '../office/wallTiles.js';
 import { vscode } from '../vscodeApi.js';
 
+export type ProviderId = 'claude' | 'copilot';
+
 export interface SubagentCharacter {
   id: number;
   parentAgentId: number;
@@ -66,6 +68,9 @@ interface ExtensionMessageState {
   hooksEnabled: boolean;
   setHooksEnabled: (v: boolean) => void;
   hooksInfoShown: boolean;
+  enabledProviders: ProviderId[];
+  setEnabledProviders: (v: ProviderId[]) => void;
+  defaultProvider: ProviderId;
 }
 
 function saveAgentSeats(os: OfficeState): void {
@@ -103,6 +108,8 @@ export function useExtensionMessages(
   const [alwaysShowLabels, setAlwaysShowLabels] = useState(false);
   const [hooksEnabled, setHooksEnabled] = useState(true);
   const [hooksInfoShown, setHooksInfoShown] = useState(true);
+  const [enabledProviders, setEnabledProviders] = useState<ProviderId[]>(['claude', 'copilot']);
+  const [defaultProvider, setDefaultProvider] = useState<ProviderId>('claude');
 
   // Track whether initial layout has been loaded (ref to avoid re-render)
   const layoutReadyRef = useRef(false);
@@ -115,6 +122,7 @@ export function useExtensionMessages(
       hueShift?: number;
       seatId?: string;
       folderName?: string;
+      providerId?: 'claude' | 'copilot';
     }> = [];
 
     const handler = (e: MessageEvent) => {
@@ -138,7 +146,7 @@ export function useExtensionMessages(
         }
         // Add buffered agents now that layout (and seats) are correct
         for (const p of pendingAgents) {
-          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName);
+          os.addAgent(p.id, p.palette, p.hueShift, p.seatId, true, p.folderName, p.providerId);
         }
         pendingAgents = [];
         layoutReadyRef.current = true;
@@ -156,6 +164,7 @@ export function useExtensionMessages(
         const teammateName = msg.teammateName as string | undefined;
         const teammateParentId = msg.parentAgentId as number | undefined;
         const teamName = msg.teamName as string | undefined;
+        const providerId = (msg.providerId as 'claude' | 'copilot' | undefined) ?? 'claude';
         setAgents((prev) => (prev.includes(id) ? prev : [...prev, id]));
         // Don't auto-select teammates (keep focus on lead)
         if (!isTeammate) {
@@ -167,7 +176,15 @@ export function useExtensionMessages(
           const parentCh = os.characters.get(teammateParentId);
           const palette = parentCh ? parentCh.palette : undefined;
           const hueShift = parentCh ? parentCh.hueShift : undefined;
-          os.addAgent(id, palette, hueShift, undefined, undefined, parentCh?.folderName);
+          os.addAgent(
+            id,
+            palette,
+            hueShift,
+            undefined,
+            undefined,
+            parentCh?.folderName,
+            parentCh?.providerId ?? providerId,
+          );
           // Set team metadata on the character
           const ch = os.characters.get(id);
           if (ch) {
@@ -176,7 +193,7 @@ export function useExtensionMessages(
             ch.agentName = teammateName;
           }
         } else {
-          os.addAgent(id, undefined, undefined, undefined, undefined, folderName);
+          os.addAgent(id, undefined, undefined, undefined, undefined, folderName, providerId);
         }
         saveAgentSeats(os);
       } else if (msg.type === 'agentClosed') {
@@ -209,7 +226,12 @@ export function useExtensionMessages(
         const incoming = msg.agents as number[];
         const meta = (msg.agentMeta || {}) as Record<
           number,
-          { palette?: number; hueShift?: number; seatId?: string }
+          {
+            palette?: number;
+            hueShift?: number;
+            seatId?: string;
+            providerId?: 'claude' | 'copilot';
+          }
         >;
         const folderNames = (msg.folderNames || {}) as Record<number, string>;
         // Buffer agents — they'll be added in layoutLoaded after seats are built
@@ -221,6 +243,7 @@ export function useExtensionMessages(
             hueShift: m?.hueShift,
             seatId: m?.seatId,
             folderName: folderNames[id],
+            providerId: m?.providerId,
           });
         }
         setAgents((prev) => {
@@ -478,6 +501,12 @@ export function useExtensionMessages(
         if (typeof msg.extensionVersion === 'string') {
           setExtensionVersion(msg.extensionVersion as string);
         }
+        if (Array.isArray(msg.enabledProviders)) {
+          setEnabledProviders(msg.enabledProviders as ProviderId[]);
+        }
+        if (typeof msg.defaultProvider === 'string') {
+          setDefaultProvider(msg.defaultProvider as ProviderId);
+        }
       } else if (msg.type === 'externalAssetDirectoriesUpdated') {
         if (Array.isArray(msg.dirs)) {
           setExternalAssetDirectories(msg.dirs as string[]);
@@ -534,5 +563,8 @@ export function useExtensionMessages(
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    enabledProviders,
+    setEnabledProviders,
+    defaultProvider,
   };
 }

@@ -70,6 +70,8 @@ export interface PersistedAgent {
   projectDir: string;
   /** Workspace folder name (only set for multi-root workspaces) */
   folderName?: string;
+  /** Provider that created this agent (defaults to 'claude') */
+  providerId?: string;
 
   // -- Agent Teams --
   teamName?: string;

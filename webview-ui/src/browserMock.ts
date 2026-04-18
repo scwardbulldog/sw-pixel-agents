@@ -261,6 +261,8 @@ export function dispatchMockMessages(): void {
     soundEnabled: false,
     extensionVersion: '1.3.0',
     lastSeenVersion: '1.2',
+    enabledProviders: ['claude', 'copilot'],
+    defaultProvider: 'claude',
   });
 
   console.log('[BrowserMock] Messages dispatched');

@@ -1,6 +1,6 @@
 # Pixel Agents — Compressed Reference
 
-VS Code extension with embedded React webview: pixel art office where AI agents (Claude Code terminals) are animated characters.
+VS Code extension with embedded React webview: pixel art office where AI agents (Claude Code and GitHub Copilot CLI terminals) are animated characters.
 
 ## Architecture
 
@@ -11,7 +11,7 @@ src/                          — Extension backend (Node.js, VS Code API)
   PixelAgentsViewProvider.ts   — WebviewViewProvider, message dispatch, asset loading, server lifecycle
   assetLoader.ts              — PNG parsing, sprite conversion, catalog building, default layout loading
   agentManager.ts             — Terminal lifecycle: launch, remove, restore, persist
-  configPersistence.ts        — User-level config file I/O (~/.pixel-agents/config.json), external asset directories
+  configPersistence.ts        — User-level config file I/O (~/.pixel-agents/config.json), external asset directories, provider settings
   layoutPersistence.ts        — User-level layout file I/O (~/.pixel-agents/layout.json), migration, cross-window watching
   fileWatcher.ts              — fs.watch + polling, readNewLines, /clear detection, terminal adoption
   transcriptParser.ts         — JSONL parsing: tool_use/tool_result → webview messages
@@ -23,14 +23,25 @@ server/                       — Standalone server (Node.js, no VS Code deps ex
     server.ts                 — HTTP server: hook endpoint, health check, server.json discovery
     hookEventHandler.ts       — Routes hook events to agents, buffers pre-registration events
     constants.ts              — All timing/scanning constants (shared by extension + server)
-    providers/file/
-      claudeHookInstaller.ts  — Install/uninstall hooks in ~/.claude/settings.json
-      hooks/claude-hook.ts    — Hook script: reads stdin, POSTs to server (bundled to CJS by esbuild)
+    provider.ts               — HookProvider interface for CLI providers
+    providers/
+      index.ts                — Provider registry (exports claudeProvider, copilotProvider)
+      hook/claude/            — Claude Code provider
+        claude.ts             — HookProvider impl, formatToolStatus, normalizeHookEvent
+        claudeHookInstaller.ts — Install/uninstall hooks in ~/.claude/settings.json
+        claudeTeamProvider.ts — Agent Teams support
+        constants.ts          — Claude-specific constants (hook events)
+        hooks/claude-hook.ts  — Hook script: reads stdin, POSTs to server
+      hook/copilot/           — GitHub Copilot CLI provider
+        copilot.ts            — HookProvider impl, file-based detection (no hooks yet)
+        copilotTranscriptParser.ts — Parse events.jsonl into AgentEvents
+        constants.ts          — Copilot-specific constants (tool mappings, event types)
   __tests__/                  — Vitest test suite
     server.test.ts            — HTTP server lifecycle, auth, hooks, server.json
     hookEventHandler.test.ts  — Event routing, buffering, timer cancellation
     claudeHookInstaller.test.ts — Hook install/uninstall in settings.json
     claude-hook.test.ts       — Integration: spawns real hook script process
+    copilot.test.ts           — Copilot provider unit tests
 
 webview-ui/src/               — React + TypeScript (Vite)
   constants.ts                — All webview magic numbers/strings (grid, animation, rendering, camera, zoom, editor, game logic, notification sound)
@@ -88,25 +99,31 @@ scripts/                      — 7-stage asset extraction pipeline
 
 ## Core Concepts
 
-**Vocabulary**: Terminal = VS Code terminal running Claude. Session = JSONL conversation file. Agent = webview character bound 1:1 to a terminal.
+**Vocabulary**: Terminal = VS Code terminal running Claude Code or Copilot CLI. Session = JSONL conversation file. Agent = webview character bound 1:1 to a terminal. Provider = CLI adapter (Claude Code, Copilot CLI).
 
-**Extension ↔ Webview**: `postMessage` protocol. Key messages: `openClaude`, `agentCreated/Closed`, `focusAgent`, `agentToolStart/Done/Clear`, `agentStatus`, `existingAgents`, `layoutLoaded`, `furnitureAssetsLoaded`, `floorTilesLoaded`, `wallTilesLoaded`, `saveLayout`, `saveAgentSeats`, `exportLayout`, `importLayout`, `settingsLoaded` (includes `externalAssetDirectories`), `setSoundEnabled`, `addExternalAssetDirectory`, `removeExternalAssetDirectory` (field: `path`), `externalAssetDirectoriesUpdated` (field: `dirs`).
+**Extension ↔ Webview**: `postMessage` protocol. Key messages: `openClaude`, `openCopilot`, `agentCreated/Closed`, `focusAgent`, `agentToolStart/Done/Clear`, `agentStatus`, `existingAgents`, `layoutLoaded`, `furnitureAssetsLoaded`, `floorTilesLoaded`, `wallTilesLoaded`, `saveLayout`, `saveAgentSeats`, `exportLayout`, `importLayout`, `settingsLoaded` (includes `externalAssetDirectories`, `enabledProviders`), `setSoundEnabled`, `addExternalAssetDirectory`, `removeExternalAssetDirectory` (field: `path`), `externalAssetDirectoriesUpdated` (field: `dirs`).
 
-**One-agent-per-terminal**: Each "+ Agent" click → new terminal (`claude --session-id <uuid>`) → immediate agent creation → 1s poll for `<uuid>.jsonl` → file watching starts.
+**Provider architecture**: `HookProvider` interface (`server/src/provider.ts`) abstracts CLI-specific behavior. Each provider implements `normalizeHookEvent()` (hook→AgentEvent), `formatToolStatus()` (tool display), `getSessionDirs()` (where to scan), `buildLaunchCommand()` (terminal spawn). Claude supports hooks + file polling; Copilot is file-only (no hooks API yet).
 
-**Terminal adoption**: Project-level 1s scan detects unknown JSONL files. If active terminal has no agent → adopt. If focused agent exists → reassign (`/clear` handling).
+**One-agent-per-terminal**: Each "+ Agent" click → new terminal (`claude --session-id <uuid>` or `copilot --resume=<uuid>`) → immediate agent creation → poll for session file → file watching starts.
+
+**Terminal adoption**: Project-level 1s scan detects unknown session files. If active terminal has no agent → adopt. If focused agent exists → reassign (`/clear` handling).
 
 ## Agent Status Tracking
 
-JSONL transcripts at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Project hash = workspace path with `:`/`\`/`/` → `-`.
+**Claude Code**: JSONL transcripts at `~/.claude/projects/<project-hash>/<session-id>.jsonl`. Project hash = workspace path with `:`/`\`/`/` → `-`.
 
-**JSONL record types**: `assistant` (tool_use blocks or thinking), `user` (tool_result or text prompt), `system` with `subtype: "turn_duration"` (reliable turn-end signal), `progress` with `data.type`: `agent_progress` (sub-agent tool_use/tool_result forwarded to webview, non-exempt tools trigger permission timers), `bash_progress` (long-running Bash output — restarts permission timer to confirm tool is executing), `mcp_progress` (MCP tool status — same timer restart logic). Also observed but not tracked: `file-history-snapshot`, `queue-operation`.
+**JSONL record types (Claude)**: `assistant` (tool_use blocks or thinking), `user` (tool_result or text prompt), `system` with `subtype: "turn_duration"` (reliable turn-end signal), `progress` with `data.type`: `agent_progress` (sub-agent tool_use/tool_result forwarded to webview, non-exempt tools trigger permission timers), `bash_progress` (long-running Bash output — restarts permission timer to confirm tool is executing), `mcp_progress` (MCP tool status — same timer restart logic). Also observed but not tracked: `file-history-snapshot`, `queue-operation`.
+
+**GitHub Copilot CLI**: Events at `~/.copilot/session-state/<session-id>/events.jsonl`. Session ID = directory name (UUID).
+
+**Event types (Copilot)**: `session.start`, `tool.execution_start` (toolCallId, toolName, arguments), `tool.execution_complete` (toolCallId, success, result), `assistant.turn_end`, `user.message`. No hooks API yet — file polling only.
 
 **File watching**: Single polling approach (500ms). Partial line buffering for mid-write reads. Tool done messages delayed 300ms to prevent flicker.
 
-**Dual-mode session detection**: Hooks mode (preferred) uses Claude Code Hooks API for instant, reliable detection. Heuristic mode (fallback) uses filesystem polling when hooks are unavailable. The `hookDelivered` flag per agent and `hooksEnabledRef` globally control the switch.
+**Dual-mode session detection (Claude only)**: Hooks mode (preferred) uses Claude Code Hooks API for instant, reliable detection. Heuristic mode (fallback) uses filesystem polling when hooks are unavailable. The `hookDelivered` flag per agent and `hooksEnabledRef` globally control the switch.
 
-**Hooks mode** (11 events): `SessionStart` (session begin/resume/clear), `SessionEnd` (exit/clear), `Stop` (turn complete), `PermissionRequest`, `Notification` (idle/permission prompt), `UserPromptSubmit` (instant agent spawn confirmation), `PreToolUse` (instant active state), `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`. HTTP server (`server/src/server.ts`) receives events via `~/.pixel-agents/hooks/claude-hook.js`. Server discovery via `~/.pixel-agents/server.json` (port + PID + auth token). Multi-window safe. When hooks are active, heuristic scanners (main 1s, external 3s, stale 30s) are skipped entirely.
+**Hooks mode (Claude, 11 events)**: `SessionStart` (session begin/resume/clear), `SessionEnd` (exit/clear), `Stop` (turn complete), `PermissionRequest`, `Notification` (idle/permission prompt), `UserPromptSubmit` (instant agent spawn confirmation), `PreToolUse` (instant active state), `PostToolUse`, `PostToolUseFailure`, `SubagentStart`, `SubagentStop`. HTTP server (`server/src/server.ts`) receives events via `~/.pixel-agents/hooks/claude-hook.js`. Server discovery via `~/.pixel-agents/server.json` (port + PID + auth token). Multi-window safe. When hooks are active, heuristic scanners (main 1s, external 3s, stale 30s) are skipped entirely.
 
 **Heuristic mode** (fallback): Per-agent 500ms JSONL polling for /clear detection, 1s main scanner for terminal adoption, 3s external scanner, 30s stale check. Content-based /clear detection (`/clear</command-name>` in first 8KB). Multiple dismissal systems (clearDismissedFiles, dismissedJsonlFiles, seededMtimes, pendingClearFiles).
 

@@ -5,7 +5,12 @@ import * as vscode from 'vscode';
 
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
 import {
+  COPILOT_EVENTS_FILE,
+  COPILOT_SESSION_DIR,
+} from '../server/src/providers/hook/copilot/constants.js';
+import {
   TERMINAL_NAME_PREFIX,
+  TERMINAL_NAME_PREFIX_COPILOT,
   WORKSPACE_KEY_AGENT_SEATS,
   WORKSPACE_KEY_AGENTS,
 } from './constants.js';
@@ -20,6 +25,10 @@ import { logger } from './logger.js';
 import { cancelPermissionTimer, cancelWaitingTimer } from './timerManager.js';
 import type { AgentState, PersistedAgent } from './types.js';
 
+/**
+ * Get Claude Code project directory path for a given workspace.
+ * Claude stores sessions at ~/.claude/projects/<workspace-path-with-dashes>/
+ */
 export function getProjectDirPath(cwd?: string): string {
   // Fall back to home directory when no workspace folder is open.
   // This is the common case on Linux/macOS when VS Code is launched without a folder
@@ -61,6 +70,25 @@ export function getProjectDirPath(cwd?: string): string {
   return projectDir;
 }
 
+/**
+ * Get Copilot CLI session directory path.
+ * Copilot stores sessions at ~/.copilot/session-state/<session-uuid>/
+ */
+export function getCopilotSessionDirPath(sessionId: string): string {
+  return path.join(os.homedir(), COPILOT_SESSION_DIR, sessionId);
+}
+
+/**
+ * Get the Copilot CLI session root directory.
+ * Returns ~/.copilot/session-state/
+ */
+export function getCopilotSessionRootPath(): string {
+  return path.join(os.homedir(), COPILOT_SESSION_DIR);
+}
+
+/**
+ * Launch a new Claude Code terminal.
+ */
 export async function launchNewTerminal(
   nextAgentIdRef: { current: number },
   nextTerminalIndexRef: { current: number },
@@ -129,6 +157,7 @@ export async function launchNewTerminal(
     seenUnknownRecordTypes: new Set(),
     folderName,
     hookDelivered: false,
+    providerId: 'claude',
     inputTokens: 0,
     outputTokens: 0,
   };
@@ -137,7 +166,7 @@ export async function launchNewTerminal(
   activeAgentIdRef.current = id;
   persistAgents();
   logger.info(`Terminal: Agent ${id} - created for terminal ${terminal.name}`);
-  webview?.postMessage({ type: 'agentCreated', id, folderName });
+  webview?.postMessage({ type: 'agentCreated', id, folderName, providerId: 'claude' });
 
   ensureProjectScan(
     projectDir,
@@ -243,6 +272,161 @@ export async function launchNewTerminal(
   jsonlPollTimers.set(id, pollTimer);
 }
 
+/**
+ * Launch a new GitHub Copilot CLI terminal.
+ *
+ * Unlike Claude Code which uses --session-id, Copilot CLI generates its own
+ * session UUIDs. We launch the terminal, then watch for new session directories
+ * to appear in ~/.copilot/session-state/.
+ */
+export async function launchCopilotTerminal(
+  nextAgentIdRef: { current: number },
+  nextTerminalIndexRef: { current: number },
+  agents: Map<number, AgentState>,
+  activeAgentIdRef: { current: number | null },
+  knownJsonlFiles: Set<string>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  jsonlPollTimers: Map<number, ReturnType<typeof setInterval>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+  folderPath?: string,
+  bypassPermissions?: boolean,
+): Promise<void> {
+  const folders = vscode.workspace.workspaceFolders;
+  const cwd = folderPath || folders?.[0]?.uri.fsPath || os.homedir();
+  const isMultiRoot = !!(folders && folders.length > 1);
+  const idx = nextTerminalIndexRef.current++;
+  const terminal = vscode.window.createTerminal({
+    name: `${TERMINAL_NAME_PREFIX_COPILOT} #${idx}`,
+    cwd,
+  });
+  terminal.show();
+
+  // Build copilot command
+  const copilotCmd = bypassPermissions ? 'copilot --allow-all' : 'copilot';
+  terminal.sendText(copilotCmd);
+
+  // Get the session root directory
+  const sessionRoot = getCopilotSessionRootPath();
+
+  // Snapshot existing session directories before launch
+  let existingDirs = new Set<string>();
+  try {
+    if (fs.existsSync(sessionRoot)) {
+      existingDirs = new Set(fs.readdirSync(sessionRoot));
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  // Create agent with placeholder session info
+  const id = nextAgentIdRef.current++;
+  const folderName = isMultiRoot && cwd ? path.basename(cwd) : undefined;
+
+  // We don't know the session ID yet - Copilot generates it
+  const agent: AgentState = {
+    id,
+    sessionId: '', // Will be set when we detect the new session
+    terminalRef: terminal,
+    isExternal: false,
+    projectDir: sessionRoot,
+    jsonlFile: '', // Will be set when we detect the new session
+    fileOffset: 0,
+    lineBuffer: '',
+    activeToolIds: new Set(),
+    activeToolStatuses: new Map(),
+    activeToolNames: new Map(),
+    activeSubagentToolIds: new Map(),
+    activeSubagentToolNames: new Map(),
+    backgroundAgentToolIds: new Set(),
+    isWaiting: false,
+    permissionSent: false,
+    hadToolsInTurn: false,
+    lastDataAt: 0,
+    linesProcessed: 0,
+    seenUnknownRecordTypes: new Set(),
+    folderName,
+    hookDelivered: false,
+    providerId: 'copilot',
+    inputTokens: 0,
+    outputTokens: 0,
+  };
+
+  agents.set(id, agent);
+  activeAgentIdRef.current = id;
+  persistAgents();
+  logger.info(`Terminal: Agent ${id} - created Copilot terminal ${terminal.name}`);
+  webview?.postMessage({ type: 'agentCreated', id, folderName, providerId: 'copilot' });
+
+  // Poll for new session directory to appear
+  const createdAt = Date.now();
+  let pollCount = 0;
+  logger.debug(`Terminal: Agent ${id} - waiting for Copilot session directory`);
+
+  const pollTimer = setInterval(() => {
+    pollCount++;
+    try {
+      if (!fs.existsSync(sessionRoot)) return;
+
+      const currentDirs = fs.readdirSync(sessionRoot);
+      // Find new directories that didn't exist before
+      for (const dir of currentDirs) {
+        if (existingDirs.has(dir)) continue;
+
+        // Check if this looks like a UUID session directory
+        const sessionDir = path.join(sessionRoot, dir);
+        const stat = fs.statSync(sessionDir);
+        if (!stat.isDirectory()) continue;
+
+        // Only consider directories created after we launched
+        if (stat.mtimeMs < createdAt - 1000) continue;
+
+        // Check if events.jsonl exists
+        const eventsFile = path.join(sessionDir, COPILOT_EVENTS_FILE);
+        if (!fs.existsSync(eventsFile)) continue;
+
+        // Found the new session!
+        logger.info(`Terminal: Agent ${id} - found Copilot session ${dir} (after ${pollCount}s)`);
+        clearInterval(pollTimer);
+        jsonlPollTimers.delete(id);
+
+        // Update agent with session info
+        agent.sessionId = dir;
+        agent.projectDir = sessionDir;
+        agent.jsonlFile = eventsFile;
+        knownJsonlFiles.add(eventsFile);
+
+        // Start file watching
+        startFileWatching(
+          id,
+          eventsFile,
+          agents,
+          fileWatchers,
+          pollingTimers,
+          waitingTimers,
+          permissionTimers,
+          webview,
+        );
+        readNewLines(id, agents, waitingTimers, permissionTimers, webview);
+        persistAgents();
+        return;
+      }
+
+      // After 30s, warn
+      if (pollCount === 30) {
+        logger.warn(`Terminal: Agent ${id} - Copilot session directory not found after 30s`);
+      }
+    } catch {
+      /* ignore errors */
+    }
+  }, JSONL_POLL_INTERVAL_MS);
+
+  jsonlPollTimers.set(id, pollTimer);
+}
+
 export function removeAgent(
   agentId: number,
   agents: Map<number, AgentState>,
@@ -295,6 +479,7 @@ export function persistAgents(
       jsonlFile: agent.jsonlFile,
       projectDir: agent.projectDir,
       folderName: agent.folderName,
+      providerId: agent.providerId,
       teamName: agent.teamName,
       agentName: agent.agentName,
       isTeamLead: agent.isTeamLead,
@@ -376,6 +561,7 @@ export function restoreAgents(
       seenUnknownRecordTypes: new Set(),
       folderName: p.folderName,
       hookDelivered: false,
+      providerId: p.providerId ?? 'claude',
       inputTokens: 0,
       outputTokens: 0,
       teamName: p.teamName,
@@ -388,13 +574,9 @@ export function restoreAgents(
     agents.set(p.id, agent);
     knownJsonlFiles.add(p.jsonlFile);
     if (isExternal) {
-      logger.debug(
-        `Terminal: Agent ${p.id} - restored external → ${path.basename(p.jsonlFile)}`,
-      );
+      logger.debug(`Terminal: Agent ${p.id} - restored external → ${path.basename(p.jsonlFile)}`);
     } else {
-      logger.debug(
-        `Terminal: Agent ${p.id} - restored → terminal "${p.terminalName}"`,
-      );
+      logger.debug(`Terminal: Agent ${p.id} - restored → terminal "${p.terminalName}"`);
     }
 
     if (p.id > maxId) maxId = p.id;
@@ -465,9 +647,7 @@ export function restoreAgents(
       for (const id of restoredTerminalIds) {
         const agent = agents.get(id);
         if (agent && !agent.isExternal && agent.linesProcessed === 0) {
-          logger.debug(
-            `Terminal: Agent ${id} - removing restored agent, no data received`,
-          );
+          logger.debug(`Terminal: Agent ${id} - removing restored agent, no data received`);
           agent.terminalRef?.dispose();
           removeAgent(
             id,
@@ -528,9 +708,23 @@ export function sendExistingAgents(
   agentIds.sort((a, b) => a - b);
 
   // Include persisted palette/seatId from separate key
-  const agentMeta = context.workspaceState.get<
+  const storedMeta = context.workspaceState.get<
     Record<string, { palette?: number; seatId?: string }>
   >(WORKSPACE_KEY_AGENT_SEATS, {});
+
+  // Build agentMeta with providerId from runtime state
+  const agentMeta: Record<
+    string,
+    { palette?: number; seatId?: string; hueShift?: number; providerId?: string }
+  > = {};
+  for (const [id, agent] of agents) {
+    const stored = storedMeta[String(id)];
+    agentMeta[String(id)] = {
+      palette: stored?.palette,
+      seatId: stored?.seatId,
+      providerId: agent.providerId,
+    };
+  }
 
   // Include folderName and isExternal per agent
   const folderNames: Record<number, string> = {};

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import type { ProviderId } from '../hooks/useExtensionMessages.js';
 import { isSoundEnabled, setSoundEnabled } from '../notificationSound.js';
 import { vscode } from '../vscodeApi.js';
 import { Button } from './ui/Button.js';
@@ -19,6 +20,8 @@ interface SettingsModalProps {
   onToggleWatchAllSessions: () => void;
   hooksEnabled: boolean;
   onToggleHooksEnabled: () => void;
+  enabledProviders: ProviderId[];
+  onToggleProvider: (provider: ProviderId) => void;
 }
 
 export function SettingsModal({
@@ -33,6 +36,8 @@ export function SettingsModal({
   onToggleWatchAllSessions,
   hooksEnabled,
   onToggleHooksEnabled,
+  enabledProviders,
+  onToggleProvider,
 }: SettingsModalProps) {
   const [soundLocal, setSoundLocal] = useState(isSoundEnabled);
 
@@ -102,6 +107,19 @@ export function SettingsModal({
         label="Watch All Sessions"
         checked={watchAllSessions}
         onChange={onToggleWatchAllSessions}
+      />
+      <div className="py-4 px-10">
+        <span className="text-xs text-text-muted">Enabled Providers</span>
+      </div>
+      <Checkbox
+        label="Claude Code"
+        checked={enabledProviders.includes('claude')}
+        onChange={() => onToggleProvider('claude')}
+      />
+      <Checkbox
+        label="Copilot CLI"
+        checked={enabledProviders.includes('copilot')}
+        onChange={() => onToggleProvider('copilot')}
       />
       <Checkbox
         label="Instant Detection (Hooks)"

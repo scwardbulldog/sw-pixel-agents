@@ -14,6 +14,7 @@ import { claudeProvider, copyHookScript } from '../server/src/providers/index.js
 import { PixelAgentsServer } from '../server/src/server.js';
 import {
   getProjectDirPath,
+  launchCopilotTerminal,
   launchNewTerminal,
   persistAgents,
   removeAgent,
@@ -366,6 +367,32 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
             this.registerAgentHook(agent);
           }
         }
+      } else if (message.type === 'openCopilot') {
+        // Launch a new Copilot CLI terminal
+        const prevAgentIds = new Set(this.agents.keys());
+        await launchCopilotTerminal(
+          this.nextAgentId,
+          this.nextTerminalIndex,
+          this.agents,
+          this.activeAgentId,
+          this.knownJsonlFiles,
+          this.fileWatchers,
+          this.pollingTimers,
+          this.waitingTimers,
+          this.permissionTimers,
+          this.jsonlPollTimers,
+          this.webview,
+          this.persistAgents,
+          message.folderPath as string | undefined,
+          message.bypassPermissions as boolean | undefined,
+        );
+        // Note: Copilot doesn't have hooks yet, so no registerAgentHook call
+        // Future: register with Copilot hook handler when available
+        for (const [id, agent] of this.agents) {
+          if (!prevAgentIds.has(id) && agent.providerId === 'copilot') {
+            logger.debug(`Terminal: Agent ${id} - Copilot agent created (no hooks available)`);
+          }
+        }
       } else if (message.type === 'focusAgent') {
         const agent = this.agents.get(message.id);
         if (agent) {
@@ -428,6 +455,12 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
         }
       } else if (message.type === 'setHooksInfoShown') {
         this.context.globalState.update(GLOBAL_KEY_HOOKS_INFO_SHOWN, true);
+      } else if (message.type === 'setEnabledProviders') {
+        const providers = message.providers as ('claude' | 'copilot')[];
+        const config = readConfig();
+        config.enabledProviders = providers;
+        writeConfig(config);
+        logger.info(`Enabled providers updated: ${providers.join(', ')}`);
       } else if (message.type === 'setWatchAllSessions') {
         const enabled = message.enabled as boolean;
         this.context.globalState.update(GLOBAL_KEY_WATCH_ALL_SESSIONS, enabled);
@@ -525,6 +558,8 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           hooksEnabled,
           hooksInfoShown,
           externalAssetDirectories: config.externalAssetDirectories,
+          enabledProviders: config.enabledProviders,
+          defaultProvider: config.defaultProvider,
         });
 
         // Send workspace folders to webview (only when multi-root)

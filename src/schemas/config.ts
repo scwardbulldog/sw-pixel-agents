@@ -6,10 +6,24 @@
 import { z } from 'zod';
 
 /**
+ * Provider identifiers for AI agent CLI tools.
+ */
+export const PROVIDER_IDS = {
+  CLAUDE: 'claude',
+  COPILOT: 'copilot',
+} as const;
+
+export type ProviderId = (typeof PROVIDER_IDS)[keyof typeof PROVIDER_IDS];
+
+/**
  * Complete configuration schema for Pixel Agents.
  */
 export const ConfigSchema = z.object({
   externalAssetDirectories: z.array(z.string()).default([]),
+  enabledProviders: z
+    .array(z.enum([PROVIDER_IDS.CLAUDE, PROVIDER_IDS.COPILOT]))
+    .default([PROVIDER_IDS.CLAUDE, PROVIDER_IDS.COPILOT]),
+  defaultProvider: z.enum([PROVIDER_IDS.CLAUDE, PROVIDER_IDS.COPILOT]).default(PROVIDER_IDS.CLAUDE),
 });
 
 export type PixelAgentsConfig = z.infer<typeof ConfigSchema>;
@@ -19,6 +33,8 @@ export type PixelAgentsConfig = z.infer<typeof ConfigSchema>;
  */
 export const DEFAULT_CONFIG: PixelAgentsConfig = {
   externalAssetDirectories: [],
+  enabledProviders: [PROVIDER_IDS.CLAUDE, PROVIDER_IDS.COPILOT],
+  defaultProvider: PROVIDER_IDS.CLAUDE,
 };
 
 /**

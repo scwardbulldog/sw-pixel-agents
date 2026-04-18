@@ -71,6 +71,9 @@ function App() {
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    enabledProviders,
+    setEnabledProviders,
+    defaultProvider,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -321,11 +324,12 @@ function App() {
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
         onToggleEditMode={editor.handleToggleEditMode}
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={() => setIsSettingsOpen((v) => !v)}
         workspaceFolders={workspaceFolders}
+        enabledProviders={enabledProviders}
+        defaultProvider={defaultProvider}
       />
 
       <VersionIndicator
@@ -360,6 +364,17 @@ function App() {
           const newVal = !hooksEnabled;
           setHooksEnabled(newVal);
           vscode.postMessage({ type: 'setHooksEnabled', enabled: newVal });
+        }}
+        enabledProviders={enabledProviders}
+        onToggleProvider={(provider) => {
+          const isEnabled = enabledProviders.includes(provider);
+          // Prevent disabling the last provider
+          if (isEnabled && enabledProviders.length === 1) return;
+          const newProviders = isEnabled
+            ? enabledProviders.filter((p) => p !== provider)
+            : [...enabledProviders, provider];
+          setEnabledProviders(newProviders);
+          vscode.postMessage({ type: 'setEnabledProviders', providers: newProviders });
         }}
       />
 
