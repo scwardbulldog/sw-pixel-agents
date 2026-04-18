@@ -1,462 +1,174 @@
-# Gitleaks
+<h1 align="center">
+    <a href="https://github.com/pablodelucca/pixel-agents/discussions">
+        <img src="webview-ui/public/banner.png" alt="Pixel Agents">
+    </a>
+</h1>
 
-```
-┌─○───┐
-│ │╲  │
-│ │ ○ │
-│ ○ ░ │
-└─░───┘
-```
+<h2 align="center" style="padding-bottom: 20px;">
+  The game interface where AI agents build real things
+</h2>
 
-<p align="left">
-  <p align="left">
-	  <a href="https://github.com/gitleaks/gitleaks/actions/workflows/test.yml">
-		  <img alt="Github Test" src="https://github.com/gitleaks/gitleaks/actions/workflows/test.yml/badge.svg">
-	  </a>
-	  <a href="https://hub.docker.com/r/zricethezav/gitleaks">
-		  <img src="https://img.shields.io/docker/pulls/zricethezav/gitleaks.svg" />
-	  </a>
-	  <a href="https://github.com/gitleaks/gitleaks-action">
-        	<img alt="gitleaks badge" src="https://img.shields.io/badge/protected%20by-gitleaks-blue">
-    	 </a>
-  </p>
+<div align="center" style="margin-top: 25px;">
+
+[![version](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Fversion.json)](https://github.com/pablodelucca/pixel-agents/releases)
+[![marketplaces](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fpablodelucca%2F3cd28398fa4a2c0a636e1d51d41aee39%2Fraw%2Finstalls.json)](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents)
+[![stars](https://img.shields.io/github/stars/pablodelucca/pixel-agents?logo=github&color=0183ff&style=flat)](https://github.com/pablodelucca/pixel-agents/stargazers)
+[![license](https://img.shields.io/github/license/pablodelucca/pixel-agents?color=0183ff&style=flat)](https://github.com/pablodelucca/pixel-agents/blob/main/LICENSE)
+[![good first issues](https://img.shields.io/github/issues/pablodelucca/pixel-agents/good%20first%20issue?color=7057ff&label=good%20first%20issues)](https://github.com/pablodelucca/pixel-agents/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
+
+</div>
+
+<div align="center">
+<a href="https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents">🛒 VS Code Marketplace</a> • <a href="https://github.com/pablodelucca/pixel-agents/discussions">💬 Discussions</a> • <a href="https://github.com/pablodelucca/pixel-agents/issues">🐛 Issues</a> • <a href="CONTRIBUTING.md">🤝 Contributing</a> • <a href="CHANGELOG.md">📋 Changelog</a>
+</div>
+
+<br/>
+
+Pixel Agents turns multi-agent AI systems into something you can actually see and manage. Each agent becomes a character in a pixel art office. They walk around, sit at their desk, and visually reflect what they are doing — typing when writing code, reading when searching files, waiting when it needs your attention.
+
+Right now it works as a VS Code extension with Claude Code. The vision though, is a fully agent-agnostic, platform-agnostic interface for orchestrating any AI agents, deployable anywhere.
+
+This is the source code for the free Pixel Agents extension for VS Code — install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents) or [Open VSX](https://open-vsx.org/extension/pablodelucca/pixel-agents) with the full furniture catalog included.
+
+![Pixel Agents screenshot](webview-ui/public/Screenshot.jpg)
+
+## Features
+
+- **One agent, one character** — every Claude Code terminal gets its own animated character
+- **Live activity tracking** — characters animate based on what the agent is actually doing (writing, reading, running commands)
+- **Office layout editor** — design your office with floors, walls, and furniture using a built-in editor
+- **Speech bubbles** — visual indicators when an agent is waiting for input or needs permission
+- **Sound notifications** — optional chime when an agent finishes its turn
+- **Sub-agent visualization** — Task tool sub-agents spawn as separate characters linked to their parent
+- **Persistent layouts** — your office design is saved and shared across VS Code windows
+- **External asset directories** — load custom or third-party furniture packs from any folder on your machine
+- **Diverse characters** — 6 diverse characters. These are based on the amazing work of [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack).
+
+<p align="center">
+  <img src="webview-ui/public/characters.png" alt="Pixel Agents characters" width="320" height="72" style="image-rendering: pixelated;">
 </p>
 
-### Join our Discord! [![Discord](https://img.shields.io/discord/1102689410522284044.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/8Hzbrnkr7E)
+## Requirements
 
-Gitleaks is a tool for **detecting** secrets like passwords, API keys, and tokens in git repos, files, and whatever else you wanna throw at it via `stdin`.
-
-```
-➜  ~/code(master) gitleaks git -v
-
-    ○
-    │╲
-    │ ○
-    ○ ░
-    ░    gitleaks
-
-
-Finding:     "export BUNDLE_ENTERPRISE__CONTRIBSYS__COM=cafebabe:deadbeef",
-Secret:      cafebabe:deadbeef
-RuleID:      sidekiq-secret
-Entropy:     2.609850
-File:        cmd/generate/config/rules/sidekiq.go
-Line:        23
-Commit:      cd5226711335c68be1e720b318b7bc3135a30eb2
-Author:      John
-Email:       john@users.noreply.github.com
-Date:        2022-08-03T12:31:40Z
-Fingerprint: cd5226711335c68be1e720b318b7bc3135a30eb2:cmd/generate/config/rules/sidekiq.go:sidekiq-secret:23
-```
+- VS Code 1.105.0 or later
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
+- **Platform**: Windows, Linux, and macOS are supported
 
 ## Getting Started
 
-Gitleaks can be installed using Homebrew, Docker, or Go. Gitleaks is also available in binary form for many popular platforms and OS types on the [releases page](https://github.com/gitleaks/gitleaks/releases). In addition, Gitleaks can be implemented as a pre-commit hook directly in your repo or as a GitHub action using [Gitleaks-Action](https://github.com/gitleaks/gitleaks-action).
+If you just want to use Pixel Agents, the easiest way is to download the [VS Code extension](https://marketplace.visualstudio.com/items?itemName=pablodelucca.pixel-agents). If you want to play with the code, develop, or contribute, then:
 
-### Installing
+### Install from source
 
 ```bash
-# MacOS
-brew install gitleaks
-
-# Docker (DockerHub)
-docker pull zricethezav/gitleaks:latest
-docker run -v ${path_to_host_folder_to_scan}:/path zricethezav/gitleaks:latest [COMMAND] [OPTIONS] [SOURCE_PATH]
-
-# Docker (ghcr.io)
-docker pull ghcr.io/gitleaks/gitleaks:latest
-docker run -v ${path_to_host_folder_to_scan}:/path ghcr.io/gitleaks/gitleaks:latest [COMMAND] [OPTIONS] [SOURCE_PATH]
-
-# From Source (make sure `go` is installed)
-git clone https://github.com/gitleaks/gitleaks.git
-cd gitleaks
-make build
+git clone https://github.com/pablodelucca/pixel-agents.git
+cd pixel-agents
+npm install
+cd webview-ui && npm install && cd ..
+npm run build
 ```
 
-### GitHub Action
-
-Check out the official [Gitleaks GitHub Action](https://github.com/gitleaks/gitleaks-action)
-
-```
-name: gitleaks
-on: [pull_request, push, workflow_dispatch]
-jobs:
-  scan:
-    name: gitleaks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE}} # Only required for Organizations, not personal accounts.
-```
-
-### Pre-Commit
-
-1. Install pre-commit from https://pre-commit.com/#install
-2. Create a `.pre-commit-config.yaml` file at the root of your repository with the following content:
-
-   ```
-   repos:
-     - repo: https://github.com/gitleaks/gitleaks
-       rev: v8.19.0
-       hooks:
-         - id: gitleaks
-   ```
-
-   for a [native execution of GitLeaks](https://github.com/gitleaks/gitleaks/releases) or use the [`gitleaks-docker` pre-commit ID](https://github.com/gitleaks/gitleaks/blob/master/.pre-commit-hooks.yaml) for executing GitLeaks using the [official Docker images](#docker)
-
-3. Auto-update the config to the latest repos' versions by executing `pre-commit autoupdate`
-4. Install with `pre-commit install`
-5. Now you're all set!
-
-```
-➜ git commit -m "this commit contains a secret"
-Detect hardcoded secrets.................................................Failed
-```
-
-Note: to disable the gitleaks pre-commit hook you can prepend `SKIP=gitleaks` to the commit command
-and it will skip running gitleaks
-
-```
-➜ SKIP=gitleaks git commit -m "skip gitleaks check"
-Detect hardcoded secrets................................................Skipped
-```
-
-## Usage
-
-```
-Usage:
-  gitleaks [command]
-
-Available Commands:
-  completion  generate the autocompletion script for the specified shell
-  dir         scan directories or files for secrets
-  git         scan git repositories for secrets
-  help        Help about any command
-  stdin       detect secrets from stdin
-  version     display gitleaks version
-
-Flags:
-  -b, --baseline-path string          path to baseline with issues that can be ignored
-  -c, --config string                 config file path
-                                      order of precedence:
-                                      1. --config/-c
-                                      2. env var GITLEAKS_CONFIG
-                                      3. (target path)/.gitleaks.toml
-                                      If none of the three options are used, then gitleaks will use the default config
-      --enable-rule strings           only enable specific rules by id
-      --exit-code int                 exit code when leaks have been encountered (default 1)
-  -i, --gitleaks-ignore-path string   path to .gitleaksignore file or folder containing one (default ".")
-  -h, --help                          help for gitleaks
-      --ignore-gitleaks-allow         ignore gitleaks:allow comments
-  -l, --log-level string              log level (trace, debug, info, warn, error, fatal) (default "info")
-      --max-decode-depth int          allow recursive decoding up to this depth (default "0", no decoding is done)
-      --max-target-megabytes int      files larger than this will be skipped
-      --no-banner                     suppress banner
-      --no-color                      turn off color for verbose output
-      --redact uint[=100]             redact secrets from logs and stdout. To redact only parts of the secret just apply a percent value from 0..100. For example --redact=20 (default 100%)
-  -f, --report-format string          output format (json, csv, junit, sarif) (default "json")
-  -r, --report-path string            report file
-      --report-template string        template file used to generate the report (implies --report-format=template)
-  -v, --verbose                       show verbose output from scan
-      --version                       version for gitleaks
-
-Use "gitleaks [command] --help" for more information about a command.
-```
-
-### Commands
-
-⚠️ v8.19.0 introduced a change that deprecated `detect` and `protect`. Those commands are still available but
-are hidden in the `--help` menu. Take a look at this [gist](https://gist.github.com/zricethezav/b325bb93ebf41b9c0b0507acf12810d2) for easy command translations.
-If you find v8.19.0 broke an existing command (`detect`/`protect`), please open an issue.
-
-There are three scanning modes: `git`, `dir`, and `stdin`.
+Then press **F5** in VS Code to launch the Extension Development Host.
 
-#### Git
+### Usage
 
-The `git` command lets you scan local git repos. Under the hood, gitleaks uses the `git log -p` command to scan patches.
-You can configure the behavior of `git log -p` with the `log-opts` option.
-For example, if you wanted to run gitleaks on a range of commits you could use the following
-command: `gitleaks git -v --log-opts="--all commitA..commitB" path_to_repo`. See the [git log](https://git-scm.com/docs/git-log) documentation for more information.
-If there is no target specified as a positional argument, then gitleaks will attempt to scan the current working directory as a git repo.
+1. Open the **Pixel Agents** panel (it appears in the bottom panel area alongside your terminal)
+2. Click **+ Agent** to spawn a new Claude Code terminal and its character. Right-click for the option to launch with `--dangerously-skip-permissions` (bypasses all tool approval prompts)
+3. Start coding with Claude — watch the character react in real time
+4. Click a character to select it, then click a seat to reassign it
+5. Click **Layout** to open the office editor and customize your space
 
-#### Dir
+## Layout Editor
 
-The `dir` (aliases include `files`, `directory`) command lets you scan directories and files. Example: `gitleaks dir -v path_to_directory_or_file`.
-If there is no target specified as a positional argument, then gitleaks will scan the current working directory.
+The built-in editor lets you design your office:
 
-#### Stdin
-
-You can also stream data to gitleaks with the `stdin` command. Example: `cat some_file | gitleaks -v stdin`
-
-### Creating a baseline
-
-When scanning large repositories or repositories with a long history, it can be convenient to use a baseline. When using a baseline,
-gitleaks will ignore any old findings that are present in the baseline. A baseline can be any gitleaks report. To create a gitleaks report, run gitleaks with the `--report-path` parameter.
-
-```
-gitleaks git --report-path gitleaks-report.json # This will save the report in a file called gitleaks-report.json
-```
-
-Once as baseline is created it can be applied when running the detect command again:
-
-```
-gitleaks git --baseline-path gitleaks-report.json --report-path findings.json
-```
-
-After running the detect command with the --baseline-path parameter, report output (findings.json) will only contain new issues.
-
-## Pre-Commit hook
-
-You can run Gitleaks as a pre-commit hook by copying the example `pre-commit.py` script into
-your `.git/hooks/` directory.
-
-## Configuration
-
-Gitleaks offers a configuration format you can follow to write your own secret detection rules:
-
-```toml
-# Title for the gitleaks configuration file.
-title = "Gitleaks title"
-
-# Extend the base (this) configuration. When you extend a configuration
-# the base rules take precedence over the extended rules. I.e., if there are
-# duplicate rules in both the base configuration and the extended configuration
-# the base rules will override the extended rules.
-# Another thing to know with extending configurations is you can chain together
-# multiple configuration files to a depth of 2. Allowlist arrays are appended
-# and can contain duplicates.
-# useDefault and path can NOT be used at the same time. Choose one.
-[extend]
-# useDefault will extend the base configuration with the default gitleaks config:
-# https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
-useDefault = true
-# or you can supply a path to a configuration. Path is relative to where gitleaks
-# was invoked, not the location of the base config.
-path = "common_config.toml"
-
-# An array of tables that contain information that define instructions
-# on how to detect secrets
-[[rules]]
-
-# Unique identifier for this rule
-id = "awesome-rule-1"
-
-# Short human readable description of the rule.
-description = "awesome rule 1"
-
-# Golang regular expression used to detect secrets. Note Golang's regex engine
-# does not support lookaheads.
-regex = '''one-go-style-regex-for-this-rule'''
-
-# Int used to extract secret from regex match and used as the group that will have
-# its entropy checked if `entropy` is set.
-secretGroup = 3
-
-# Float representing the minimum shannon entropy a regex group must have to be considered a secret.
-entropy = 3.5
-
-# Golang regular expression used to match paths. This can be used as a standalone rule or it can be used
-# in conjunction with a valid `regex` entry.
-path = '''a-file-path-regex'''
-
-# Keywords are used for pre-regex check filtering. Rules that contain
-# keywords will perform a quick string compare check to make sure the
-# keyword(s) are in the content being scanned. Ideally these values should
-# either be part of the identiifer or unique strings specific to the rule's regex
-# (introduced in v8.6.0)
-keywords = [
-  "auth",
-  "password",
-  "token",
-]
-
-# Array of strings used for metadata and reporting purposes.
-tags = ["tag","another tag"]
-
-    # ⚠️ In v8.21.0 `[rules.allowlist]` was replaced with `[[rules.allowlists]]`.
-    # This change was backwards-compatible: instances of `[rules.allowlist]` still  work.
-    #
-    # You can define multiple allowlists for a rule to reduce false positives.
-    # A finding will be ignored if _ANY_ `[[rules.allowlists]]` matches.
-    [[rules.allowlists]]
-    description = "ignore commit A"
-    # When multiple criteria are defined the default condition is "OR".
-    # e.g., this can match on |commits| OR |paths| OR |stopwords|.
-    condition = "OR"
-    commits = [ "commit-A", "commit-B"]
-    paths = [
-      '''go\.mod''',
-      '''go\.sum'''
-    ]
-    # note: stopwords targets the extracted secret, not the entire regex match
-    # like 'regexes' does. (stopwords introduced in 8.8.0)
-    stopwords = [
-      '''client''',
-      '''endpoint''',
-    ]
-
-    [[rules.allowlists]]
-    # The "AND" condition can be used to make sure all criteria match.
-    # e.g., this matches if |regexes| AND |paths| are satisfied.
-    condition = "AND"
-    # note: |regexes| defaults to check the _Secret_ in the finding.
-    # Acceptable values for |regexTarget| are "secret" (default), "match", and "line".
-    regexTarget = "match"
-    regexes = [ '''(?i)parseur[il]''' ]
-    paths = [ '''package-lock\.json''' ]
-
-# You can extend a particular rule from the default config. e.g., gitlab-pat
-# if you have defined a custom token prefix on your GitLab instance
-[[rules]]
-id = "gitlab-pat"
-# all the other attributes from the default rule are inherited
-
-    [[rules.allowlists]]
-    regexTarget = "line"
-    regexes = [ '''MY-glpat-''' ]
-
-# This is a global allowlist which has a higher order of precedence than rule-specific allowlists.
-# If a commit listed in the `commits` field below is encountered then that commit will be skipped and no
-# secrets will be detected for said commit. The same logic applies for regexes and paths.
-[allowlist]
-description = "global allow list"
-commits = [ "commit-A", "commit-B", "commit-C"]
-paths = [
-  '''gitleaks\.toml''',
-  '''(.*?)(jpg|gif|doc)'''
-]
-
-# note: (global) regexTarget defaults to check the _Secret_ in the finding.
-# if regexTarget is not specified then _Secret_ will be used.
-# Acceptable values for regexTarget are "match" and "line"
-regexTarget = "match"
-regexes = [
-  '''219-09-9999''',
-  '''078-05-1120''',
-  '''(9[0-9]{2}|666)-\d{2}-\d{4}''',
-]
-# note: stopwords targets the extracted secret, not the entire regex match
-# like 'regexes' does. (stopwords introduced in 8.8.0)
-stopwords = [
-  '''client''',
-  '''endpoint''',
-]
-```
-
-Refer to the default [gitleaks config](https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml) for examples or follow the [contributing guidelines](https://github.com/gitleaks/gitleaks/blob/master/CONTRIBUTING.md) if you would like to contribute to the default configuration. Additionally, you can check out [this gitleaks blog post](https://blog.gitleaks.io/stop-leaking-secrets-configuration-2-3-aeed293b1fbf) which covers advanced configuration setups.
-
-### Additional Configuration
-
-#### gitleaks:allow
-
-If you are knowingly committing a test secret that gitleaks will catch you can add a `gitleaks:allow` comment to that line which will instruct gitleaks
-to ignore that secret. Ex:
-
-```
-class CustomClass:
-    discord_client_secret = '8dyfuiRyq=vVc3RRr_edRk-fK__JItpZ'  #gitleaks:allow
-
-```
-
-#### .gitleaksignore
-
-You can ignore specific findings by creating a `.gitleaksignore` file at the root of your repo. In release v8.10.0 Gitleaks added a `Fingerprint` value to the Gitleaks report. Each leak, or finding, has a Fingerprint that uniquely identifies a secret. Add this fingerprint to the `.gitleaksignore` file to ignore that specific secret. See Gitleaks' [.gitleaksignore](https://github.com/gitleaks/gitleaks/blob/master/.gitleaksignore) for an example. Note: this feature is experimental and is subject to change in the future.
-
-#### Decoding
-
-Sometimes secrets are encoded in a way that can make them difficult to find
-with just regex. Now you can tell gitleaks to automatically find and decode
-encoded text. The flag `--max-decode-depth` enables this feature (the default
-value "0" means the feature is disabled by default).
-
-Recursive decoding is supported since decoded text can also contain encoded
-text. The flag `--max-decode-depth` sets the recursion limit. Recursion stops
-when there are no new segments of encoded text to decode, so setting a really
-high max depth doesn't mean it will make that many passes. It will only make as
-many as it needs to decode the text. Overall, decoding only minimally increases
-scan times.
-
-The findings for encoded text differ from normal findings in the following
-ways:
-
-- The location points the bounds of the encoded text
-  - If the rule matches outside the encoded text, the bounds are adjusted to
-    include that as well
-- The match and secret contain the decoded value
-- Two tags are added `decoded:<encoding>` and `decode-depth:<depth>`
-
-Currently supported encodings:
-
-- `base64` (both standard and base64url)
-
-#### Reporting
-
-Gitleaks has built-in support for several report formats: [`json`](https://github.com/gitleaks/gitleaks/blob/master/testdata/expected/report/json_simple.json), [`csv`](https://github.com/gitleaks/gitleaks/blob/master/testdata/expected/report/csv_simple.csv?plain=1), [`junit`](https://github.com/gitleaks/gitleaks/blob/master/testdata/expected/report/junit_simple.xml), and [`sarif`](https://github.com/gitleaks/gitleaks/blob/master/testdata/expected/report/sarif_simple.sarif).
-
-If none of these formats fit your need, you can create your own report format with a [Go `text/template` .tmpl file](https://www.digitalocean.com/community/tutorials/how-to-use-templates-in-go#step-4-writing-a-template) and the `--report-template` flag. The template can use [extended functionality from the `Masterminds/sprig` template library](https://masterminds.github.io/sprig/).
-
-For example, the following template provides a custom JSON output:
-
-```gotemplate
-# jsonextra.tmpl
-[{{ $lastFinding := (sub (len . ) 1) }}
-{{- range $i, $finding := . }}{{with $finding}}
-    {
-        "Description": {{ quote .Description }},
-        "StartLine": {{ .StartLine }},
-        "EndLine": {{ .EndLine }},
-        "StartColumn": {{ .StartColumn }},
-        "EndColumn": {{ .EndColumn }},
-        "Line": {{ quote .Line }},
-        "Match": {{ quote .Match }},
-        "Secret": {{ quote .Secret }},
-        "File": "{{ .File }}",
-        "SymlinkFile": {{ quote .SymlinkFile }},
-        "Commit": {{ quote .Commit }},
-        "Entropy": {{ .Entropy }},
-        "Author": {{ quote .Author }},
-        "Email": {{ quote .Email }},
-        "Date": {{ quote .Date }},
-        "Message": {{ quote .Message }},
-        "Tags": [{{ $lastTag := (sub (len .Tags ) 1) }}{{ range $j, $tag := .Tags }}{{ quote . }}{{ if ne $j $lastTag }},{{ end }}{{ end }}],
-        "RuleID": {{ quote .RuleID }},
-        "Fingerprint": {{ quote .Fingerprint }}
-    }{{ if ne $i $lastFinding }},{{ end }}
-{{- end}}{{ end }}
-]
-```
-
-Usage:
-
-```sh
-$ gitleaks dir ~/leaky-repo/ --report-path "report.json" --report-format template --report-template testdata/report/jsonextra.tmpl
-```
-
-## Sponsorships
-
-<p align="left">
-	<h3><a href="https://coderabbit.ai/?utm_source=oss&utm_medium=sponsorship&utm_campaign=gitleaks">coderabbit.ai</h3>
-	  <a href="https://coderabbit.ai/?utm_source=oss&utm_medium=sponsorship&utm_campaign=gitleaks">
-		  <img alt="CodeRabbit.ai Sponsorship" src="https://github.com/gitleaks/gitleaks/assets/15034943/76c30a85-887b-47ca-9956-17a8e55c6c41" width=200>
-	  </a>
-</p>
-<p align="left">
-	  <a href="https://www.tines.com/?utm_source=oss&utm_medium=sponsorship&utm_campaign=gitleaks">
-		  <img alt="Tines Sponsorship" src="https://user-images.githubusercontent.com/15034943/146411864-4878f936-b4f7-49a0-b625-f9f40c704bfa.png" width=200>
-	  </a>
-  </p>
-
-## Exit Codes
-
-You can always set the exit code when leaks are encountered with the --exit-code flag. Default exit codes below:
-
-```
-0 - no leaks present
-1 - leaks or error encountered
-126 - unknown flag
-```
+- **Floor** — Full HSB color control
+- **Walls** — Auto-tiling walls with color customization
+- **Tools** — Select, paint, erase, place, eyedropper, pick
+- **Undo/Redo** — 50 levels with Ctrl+Z / Ctrl+Y
+- **Export/Import** — Share layouts as JSON files via the Settings modal
+
+The grid is expandable up to 64×64 tiles. Click the ghost border outside the current grid to grow it.
+
+### Office Assets
+
+All office assets (furniture, floors, walls) are now **fully open-source** and included in this repository under `webview-ui/public/assets/`. No external purchases or imports are needed — everything works out of the box.
+
+Each furniture item lives in its own folder under `assets/furniture/` with a `manifest.json` that declares its sprites, rotation groups, state groups (on/off), and animation frames. Floor tiles are individual PNGs in `assets/floors/`, and wall tile sets are in `assets/walls/`. This modular structure makes it easy to add, remove, or modify assets without touching any code.
+
+To add a new furniture item, create a folder in `webview-ui/public/assets/furniture/` with your PNG sprite(s) and a `manifest.json`, then rebuild. The asset manager (`scripts/asset-manager.html`) provides a visual editor for creating and editing manifests.
+
+To use furniture from an external directory, open Settings → **Add Asset Directory**. See [docs/external-assets.md](docs/external-assets.md) for the full manifest format and how to use third-party asset packs.
+
+Characters are based on the amazing work of [JIK-A-4, Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack).
+
+## How It Works
+
+Pixel Agents watches Claude Code's JSONL transcript files to track what each agent is doing. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No modifications to Claude Code are needed — it's purely observational.
+
+The webview runs a lightweight game loop with canvas rendering, BFS pathfinding, and a character state machine (idle → walk → type/read). Everything is pixel-perfect at integer zoom levels.
+
+## Tech Stack
+
+- **Extension**: TypeScript, VS Code Webview API, esbuild
+- **Webview**: React 19, TypeScript, Vite, Canvas 2D
+
+## Known Limitations
+
+- **Agent-terminal sync** — the way agents are connected to Claude Code terminal instances is not super robust and sometimes desyncs, especially when terminals are rapidly opened/closed or restored across sessions.
+- **Heuristic-based status detection** — Claude Code's JSONL transcript format does not provide clear signals for when an agent is waiting for user input or when it has finished its turn. The current detection is based on heuristics (idle timers, turn-duration events) and often misfires — agents may briefly show the wrong status or miss transitions.
+- **Linux/macOS tip** — if you launch VS Code without a folder open (e.g. bare `code` command), agents will start in your home directory. This is fully supported; just be aware your Claude sessions will be tracked under `~/.claude/projects/` using your home directory as the project root.
+
+## Troubleshooting
+
+If your agent appears stuck on idle or doesn't spawn:
+
+1. **Debug View** — In the Pixel Agents panel, click the gear icon (Settings), then toggle **Debug View**. This shows connection diagnostics per agent: JSONL file status, lines parsed, last data timestamp, and file path. If you see "JSONL not found", the extension can't locate the session file.
+2. **Debug Console** — If you're running from source (Extension Development Host via F5), open VS Code's **View > Debug Console**. Search for `[Pixel Agents]` to see detailed logs: project directory resolution, JSONL polling status, path encoding mismatches, and unrecognized JSONL record types.
+
+## Where This Is Going
+
+The long-term vision is an interface where managing AI agents feels like playing the Sims, but the results are real things built.
+
+- **Agents as characters** you can see, assign, monitor, and redirect, each with visible roles (designer, coder, writer, reviewer), stats, context usage, and tools.
+- **Desks as directories** — drag an agent to a desk to assign it to a project or working directory.
+- **An office as a project** — with a Kanban board on the wall where idle agents can pick up tasks autonomously.
+- **Deep inspection** — click any agent to see its model, branch, system prompt, and full work history. Interrupt it, chat with it, or redirect it.
+- **Token health bars** — rate limits and context windows visualized as in-game stats.
+- **Fully customizable** — upload your own character sprites, themes, and office assets. Eventually maybe even move beyond pixel art into 3D or VR.
+
+For this to work, the architecture needs to be modular at every level:
+
+- **Platform-agnostic**: VS Code extension today, Electron app, web app, or any other host environment tomorrow.
+- **Agent-agnostic**: Claude Code today, but built to support Codex, OpenCode, Gemini, Cursor, Copilot, and others through composable adapters.
+- **Theme-agnostic**: community-created assets, skins, and themes from any contributor.
+
+We're actively working on the core module and adapter architecture that makes this possible. If you're interested to talk about this further, please visit our [Discussions Section](https://github.com/pablodelucca/pixel-agents/discussions).
+
+
+## Community & Contributing
+
+Use **[Issues](https://github.com/pablodelucca/pixel-agents/issues)** to report bugs or request features. Join **[Discussions](https://github.com/pablodelucca/pixel-agents/discussions)** for questions and conversations.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on how to contribute.
+
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
+
+## Supporting the Project
+
+If you find Pixel Agents useful, consider supporting its development:
+
+<a href="https://github.com/sponsors/pablodelucca">
+  <img src="https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=github" alt="GitHub Sponsors">
+</a>
+<a href="https://ko-fi.com/pablodelucca">
+  <img src="https://img.shields.io/badge/Support-Ko--fi-ff5e5b?logo=ko-fi" alt="Ko-fi">
+</a>
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=pablodelucca/pixel-agents&type=Date)](https://www.star-history.com/?repos=pablodelucca%2Fpixel-agents&type=date&legend=bottom-right)
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
