@@ -187,6 +187,17 @@ export class SessionScanner {
     }
   }
 
+  /** Check if a Copilot session directory has an active lock file */
+  private hasActiveLockFile(sessionDir: string): boolean {
+    try {
+      const files = fs.readdirSync(sessionDir);
+      // Lock file pattern: inuse.<pid>.lock
+      return files.some((f) => /^inuse\.\d+\.lock$/.test(f));
+    } catch {
+      return false;
+    }
+  }
+
   /** Scan ~/.copilot/session-state for Copilot CLI sessions */
   private scanCopilotSessions(): void {
     const copilotDir = path.join(os.homedir(), '.copilot', 'session-state');
@@ -200,8 +211,32 @@ export class SessionScanner {
         const eventsFile = path.join(sessionDir, 'events.jsonl');
 
         try {
-          if (fs.existsSync(eventsFile)) {
-            this.checkAndAdoptFile(eventsFile, 'copilot', sessionDir, sessionId);
+          if (!fs.existsSync(eventsFile)) continue;
+
+          // If we're already tracking this session, check if lock file was removed
+          // (indicates session ended). Not all Copilot versions create lock files,
+          // so we only use this as a signal for sessions that HAD a lock file.
+          const state = this.sessions.get(sessionId);
+          if (state && state.session.providerId === 'copilot') {
+            // Check if session had a lock file and it's now gone
+            const hadLockFile = (state.session as DiscoveredSession & { hadLockFile?: boolean })
+              .hadLockFile;
+            if (hadLockFile && !this.hasActiveLockFile(sessionDir)) {
+              logger.info(`SessionScanner: Copilot session ${sessionId} lock file removed`);
+              this.sessions.delete(sessionId);
+              this.knownFiles.delete(eventsFile);
+              this.callbacks.onSessionStale(sessionId);
+              continue;
+            }
+          }
+
+          // Check for new sessions
+          this.checkAndAdoptFile(eventsFile, 'copilot', sessionDir, sessionId);
+
+          // Record if lock file exists for future detection
+          const newState = this.sessions.get(sessionId);
+          if (newState && this.hasActiveLockFile(sessionDir)) {
+            (newState.session as DiscoveredSession & { hadLockFile?: boolean }).hadLockFile = true;
           }
         } catch {
           // Skip inaccessible session directories
@@ -289,21 +324,11 @@ export class SessionScanner {
     }
   }
 
-  /** Check for and remove stale sessions */
+  /** Check for stale sessions - only removes if file is deleted or Copilot lock file removed */
   private checkStaleSessions(): void {
-    const now = Date.now();
-    const staleThreshold = 5 * 60 * 1000; // 5 minutes
-
-    for (const [sessionId, state] of this.sessions) {
-      const age = now - state.session.mtime;
-      if (age > staleThreshold) {
-        logger.info(
-          `SessionScanner: session ${sessionId} is stale (${Math.floor(age / 1000)}s inactive)`,
-        );
-        this.sessions.delete(sessionId);
-        this.knownFiles.delete(state.session.transcriptPath);
-        this.callbacks.onSessionStale(sessionId);
-      }
-    }
+    // The extension keeps agents alive as long as the file exists (sessions can be resumed).
+    // File deletion is handled in pollAllSessions (ENOENT).
+    // Copilot lock file removal is handled in scanCopilotSessions.
+    // No additional mtime-based staleness check needed.
   }
 }

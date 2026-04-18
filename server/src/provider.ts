@@ -14,6 +14,7 @@ import type { TeamProvider } from './teamProvider.js';
 export type AgentEvent =
   | { kind: 'toolStart'; toolId: string; toolName: string; input?: unknown }
   | { kind: 'toolEnd'; toolId: string }
+  | { kind: 'assistantStart' } // Assistant begins thinking (before any tools)
   | { kind: 'turnEnd' }
   | { kind: 'userTurn' }
   | {

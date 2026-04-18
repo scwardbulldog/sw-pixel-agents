@@ -108,6 +108,10 @@ function normalizeEvent(event: CopilotEvent): AgentEvent | null {
       return { kind: 'turnEnd' };
     }
 
+    case COPILOT_EVENT_TYPES.ASSISTANT_TURN_START: {
+      return { kind: 'assistantStart' };
+    }
+
     case COPILOT_EVENT_TYPES.USER_MESSAGE: {
       return { kind: 'userTurn' };
     }
@@ -121,7 +125,6 @@ function normalizeEvent(event: CopilotEvent): AgentEvent | null {
     }
 
     // Events we acknowledge but don't produce AgentEvents for
-    case COPILOT_EVENT_TYPES.ASSISTANT_TURN_START:
     case COPILOT_EVENT_TYPES.SESSION_MODE_CHANGED:
     case COPILOT_EVENT_TYPES.SYSTEM_MESSAGE:
     case COPILOT_EVENT_TYPES.FUNCTION:

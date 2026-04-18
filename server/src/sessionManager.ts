@@ -25,6 +25,9 @@ import { claudeProvider } from './providers/index.js';
 import type { DiscoveredSession, SessionScanner } from './sessionScanner.js';
 import type { WebSocketBroadcaster, WebviewMessage } from './webSocketServer.js';
 
+/** Tools that indicate waiting for user input (should show permission, not done) */
+const USER_INPUT_TOOLS = new Set(['ask_user']);
+
 /** Agent state tracked for each active session */
 interface AgentState {
   id: number;
@@ -38,6 +41,7 @@ interface AgentState {
   isWaiting: boolean;
   permissionSent: boolean;
   hadToolsInTurn: boolean;
+  waitingForUserInput: boolean; // ask_user tool is active
   lastDataAt: number;
   inputTokens: number;
   outputTokens: number;
@@ -157,6 +161,7 @@ export class SessionManager {
       isWaiting: false,
       permissionSent: false,
       hadToolsInTurn: false,
+      waitingForUserInput: false,
       lastDataAt: Date.now(),
       inputTokens: 0,
       outputTokens: 0,
@@ -238,9 +243,49 @@ export class SessionManager {
     if (!event) return;
 
     switch (event.kind) {
+      case 'assistantStart': {
+        // Assistant started thinking - set active before any tools run
+        agent.isWaiting = false;
+        agent.hadToolsInTurn = false;
+
+        this.broadcaster.broadcast({
+          type: 'agentStatus',
+          id: agent.id,
+          status: 'active',
+        });
+
+        // Show "Thinking..." status while no specific tool is running
+        // Don't send toolName - let webview derive animation from status prefix
+        this.broadcaster.broadcast({
+          type: 'agentToolStart',
+          id: agent.id,
+          toolId: '__thinking__',
+          status: 'Thinking...',
+          permissionActive: false,
+        });
+        break;
+      }
+
       case 'toolStart': {
         agent.isWaiting = false;
         agent.hadToolsInTurn = true;
+
+        // Clear thinking status if it was showing
+        if (agent.activeToolIds.has('__thinking__')) {
+          agent.activeToolIds.delete('__thinking__');
+          agent.activeToolStatuses.delete('__thinking__');
+          agent.activeToolNames.delete('__thinking__');
+          this.broadcaster.broadcast({
+            type: 'agentToolDone',
+            id: agent.id,
+            toolId: '__thinking__',
+          });
+        }
+
+        // Track if this is a user-input tool (ask_user)
+        if (USER_INPUT_TOOLS.has(event.toolName)) {
+          agent.waitingForUserInput = true;
+        }
 
         const status = formatCopilotToolStatus(event.toolName, event.input);
 
@@ -254,40 +299,68 @@ export class SessionManager {
           status: 'active',
         });
 
+        // Don't send toolName - let webview derive animation from status prefix
+        // This ensures proper mapping (e.g., "Reading foo.ts" → Read → reading animation)
         this.broadcaster.broadcast({
           type: 'agentToolStart',
           id: agent.id,
           toolId: event.toolId,
           status,
-          toolName: event.toolName,
           permissionActive: agent.permissionSent,
         });
         break;
       }
 
       case 'toolEnd': {
+        // Check if this was a user-input tool completing
+        const toolName = agent.activeToolNames.get(event.toolId);
+        if (toolName && USER_INPUT_TOOLS.has(toolName)) {
+          agent.waitingForUserInput = false;
+        }
         this.scheduleToolDone(agent.id, event.toolId);
         break;
       }
 
       case 'turnEnd': {
-        // Clear all active tools and set waiting
+        // Clear all active tools (including thinking status)
         this.clearAllTools(agent);
-        agent.isWaiting = true;
         agent.hadToolsInTurn = false;
 
-        this.broadcaster.broadcast({
-          type: 'agentStatus',
-          id: agent.id,
-          status: 'waiting',
-        });
+        // If waiting for user input (ask_user), show permission bubble
+        // Otherwise show waiting (done) status
+        if (agent.waitingForUserInput) {
+          agent.isWaiting = false;
+          agent.permissionSent = true;
+          // Show permission bubble (amber dots)
+          this.broadcaster.broadcast({
+            type: 'agentToolPermission',
+            id: agent.id,
+          });
+        } else {
+          agent.isWaiting = true;
+          this.broadcaster.broadcast({
+            type: 'agentStatus',
+            id: agent.id,
+            status: 'waiting',
+          });
+        }
         break;
       }
 
       case 'userTurn': {
-        // New user prompt - agent becomes active
+        // New user prompt - agent becomes active, clear permission state
         agent.isWaiting = false;
         agent.hadToolsInTurn = false;
+        agent.waitingForUserInput = false;
+
+        // Clear permission bubble if it was shown
+        if (agent.permissionSent) {
+          agent.permissionSent = false;
+          this.broadcaster.broadcast({
+            type: 'agentToolPermissionClear',
+            id: agent.id,
+          });
+        }
 
         this.broadcaster.broadcast({
           type: 'agentStatus',
