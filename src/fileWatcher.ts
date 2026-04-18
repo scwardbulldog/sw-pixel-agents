@@ -38,6 +38,7 @@ import {
 import type { TeamProvider } from '../server/src/teamProvider.js';
 import { removeAgent } from './agentManager.js';
 import { TERMINAL_NAME_PREFIX } from './constants.js';
+import { processCopilotTranscriptLine } from './copilotTranscriptProcessor.js';
 import { logger } from './logger.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
@@ -232,7 +233,19 @@ export function readNewLines(
         continue;
       }
 
-      processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+      // Use provider-specific transcript processing
+      if (agent.providerId === 'copilot') {
+        processCopilotTranscriptLine(
+          agentId,
+          line,
+          agents,
+          waitingTimers,
+          permissionTimers,
+          webview,
+        );
+      } else {
+        processTranscriptLine(agentId, line, agents, waitingTimers, permissionTimers, webview);
+      }
     }
   } catch (e) {
     // ENOENT is expected for hook-detected agents where the JSONL file hasn't been created yet
@@ -838,6 +851,9 @@ export function scanAllTeammateFiles(
  * Adopt an external session detected via hooks (SessionStart for unknown session_id).
  * Thinner wrapper than filesystem-based adoptExternalSession: hooks provide
  * transcript_path and cwd directly, no scanning needed.
+ *
+ * @param providerId - Provider identifier ('claude', 'copilot', etc.). Propagated to webview
+ *                     for correct UI display (provider indicator, tool name formatting).
  */
 export function adoptExternalSessionFromHook(
   sessionId: string,
@@ -853,6 +869,7 @@ export function adoptExternalSessionFromHook(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   onAgentCreated?: (agent: AgentState) => void,
+  providerId?: string,
 ): void {
   if (transcriptPath) {
     // File-based provider (Claude, Codex): adopt with JSONL file watching
@@ -881,6 +898,7 @@ export function adoptExternalSessionFromHook(
       webview,
       persistAgents,
       folderName,
+      providerId,
     );
 
     const adoptedAgent = [...agents.values()].find((a) => a.jsonlFile === transcriptPath);
@@ -922,6 +940,7 @@ export function adoptExternalSessionFromHook(
       linesProcessed: 0,
       seenUnknownRecordTypes: new Set(),
       folderName,
+      providerId,
       inputTokens: 0,
       outputTokens: 0,
     };
@@ -930,11 +949,17 @@ export function adoptExternalSessionFromHook(
     logger.debug(
       `Hook: Agent ${id} - detected hooks-only external session${folderName ? ` (${folderName})` : ''}`,
     );
-    webview?.postMessage({ type: 'agentCreated', id, folderName });
+    webview?.postMessage({ type: 'agentCreated', id, folderName, providerId });
     onAgentCreated?.(agent);
   }
 }
 
+/**
+ * Adopt an external session from filesystem detection.
+ *
+ * @param providerId - Provider identifier ('claude', 'copilot', etc.). Determines which
+ *                     transcript parser to use and how the agent is displayed in the UI.
+ */
 function adoptExternalSession(
   jsonlFile: string,
   projectDir: string,
@@ -947,6 +972,7 @@ function adoptExternalSession(
   webview: vscode.Webview | undefined,
   persistAgents: () => void,
   folderName?: string,
+  providerId?: string,
 ): void {
   const id = nextAgentIdRef.current++;
   // Skip to end of file -- only show live activity going forward, not replay history
@@ -980,6 +1006,7 @@ function adoptExternalSession(
     linesProcessed: 0,
     seenUnknownRecordTypes: new Set(),
     folderName,
+    providerId,
     inputTokens: 0,
     outputTokens: 0,
   };
@@ -989,7 +1016,7 @@ function adoptExternalSession(
 
   // Log is emitted by the caller (adoptExternalSessionFromHook or scanExternalDir)
   // to use the correct prefix (Hook: vs Watcher:).
-  webview?.postMessage({ type: 'agentCreated', id, isExternal: true, folderName });
+  webview?.postMessage({ type: 'agentCreated', id, isExternal: true, folderName, providerId });
 
   startFileWatching(
     id,
@@ -1047,6 +1074,18 @@ export function startExternalSessionScanning(
     // If "Watch All Sessions" is ON, also scan all global project dirs
     if (watchAllSessionsRef?.current) {
       scanGlobalProjectDirs(
+        knownJsonlFiles,
+        nextAgentIdRef,
+        agents,
+        fileWatchers,
+        pollingTimers,
+        waitingTimers,
+        permissionTimers,
+        webview,
+        persistAgents,
+      );
+      // Also scan Copilot sessions
+      scanCopilotSessionDirs(
         knownJsonlFiles,
         nextAgentIdRef,
         agents,
@@ -1190,6 +1229,8 @@ function scanExternalDir(
       permissionTimers,
       webview,
       persistAgents,
+      undefined, // folderName
+      'claude', // providerId - external sessions from ~/.claude/projects/
     );
   }
 }
@@ -1257,9 +1298,7 @@ function scanGlobalProjectDirs(
 
       const folderName = folderNameFromProjectDir(dir.name);
       knownJsonlFiles.add(file);
-      logger.debug(
-        `Watcher: detected global session ${path.basename(file)} (${folderName})`,
-      );
+      logger.debug(`Watcher: detected global session ${path.basename(file)} (${folderName})`);
       adoptExternalSession(
         file,
         dirPath,
@@ -1272,14 +1311,96 @@ function scanGlobalProjectDirs(
         webview,
         persistAgents,
         folderName,
+        'claude', // providerId - global sessions from ~/.claude/projects/
       );
     }
   }
 }
 
 /**
+ * Scan ~/.copilot/session-state/ for active Copilot CLI sessions.
+ * Copilot stores sessions at ~/.copilot/session-state/<session-uuid>/events.jsonl.
+ * Unlike Claude (workspace-hash directories), Copilot uses session UUIDs as directory names.
+ */
+function scanCopilotSessionDirs(
+  knownJsonlFiles: Set<string>,
+  nextAgentIdRef: { current: number },
+  agents: Map<number, AgentState>,
+  fileWatchers: Map<number, fs.FSWatcher>,
+  pollingTimers: Map<number, ReturnType<typeof setInterval>>,
+  waitingTimers: Map<number, ReturnType<typeof setTimeout>>,
+  permissionTimers: Map<number, ReturnType<typeof setTimeout>>,
+  webview: vscode.Webview | undefined,
+  persistAgents: () => void,
+): void {
+  const sessionRoot = path.join(os.homedir(), '.copilot', 'session-state');
+  let dirs: fs.Dirent[];
+  try {
+    dirs = fs.readdirSync(sessionRoot, { withFileTypes: true }).filter((d) => d.isDirectory());
+  } catch {
+    return; // ~/.copilot/session-state/ doesn't exist
+  }
+
+  const now = Date.now();
+  for (const dir of dirs) {
+    const sessionDir = path.join(sessionRoot, dir.name);
+    const eventsFile = path.join(sessionDir, 'events.jsonl');
+
+    // Check if events.jsonl exists
+    try {
+      fs.accessSync(eventsFile, fs.constants.R_OK);
+    } catch {
+      continue; // No events.jsonl in this session directory
+    }
+
+    // Skip if already tracked
+    if (knownJsonlFiles.has(eventsFile)) continue;
+    let tracked = false;
+    for (const agent of agents.values()) {
+      if (agent.jsonlFile === eventsFile) {
+        tracked = true;
+        break;
+      }
+    }
+    if (tracked) continue;
+
+    // Activity filter: >3KB AND modified within 10 minutes
+    try {
+      const stat = fs.statSync(eventsFile);
+      if (stat.size < GLOBAL_SCAN_ACTIVE_MIN_SIZE) continue;
+      if (now - stat.mtimeMs > GLOBAL_SCAN_ACTIVE_MAX_AGE_MS) continue;
+    } catch {
+      continue;
+    }
+
+    // Copilot sessions use UUIDs as directory names, no workspace info available.
+    // Try to extract folder name from session.start event in the file if needed.
+    // For now, use undefined (will show as "External" in UI).
+    knownJsonlFiles.add(eventsFile);
+    logger.debug(`Watcher: detected Copilot session ${dir.name.slice(0, 8)}...`);
+    adoptExternalSession(
+      eventsFile,
+      sessionDir,
+      nextAgentIdRef,
+      agents,
+      fileWatchers,
+      pollingTimers,
+      waitingTimers,
+      permissionTimers,
+      webview,
+      persistAgents,
+      undefined, // folderName - Copilot doesn't have workspace info in path
+      'copilot', // providerId
+    );
+  }
+}
+
+/**
  * Periodically removes stale external agents whose JSONL files
  * haven't been modified recently.
+ *
+ * Works for both Claude (.jsonl files) and Copilot (events.jsonl in session dirs).
+ * The check is based on whether agent.jsonlFile still exists on disk.
  */
 export function startStaleExternalAgentCheck(
   agents: Map<number, AgentState>,

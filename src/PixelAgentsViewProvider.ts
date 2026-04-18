@@ -146,7 +146,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     setTeammateRemovalCallback((id) => this.removeTeammate(id, 'team-config'));
 
     this.hookEventHandler.setLifecycleCallbacks({
-      onExternalSessionDetected: (sessionId, transcriptPath, cwd) => {
+      onExternalSessionDetected: (sessionId, transcriptPath, cwd, providerId) => {
         // Workspace filtering: only adopt if in a tracked project dir or Watch All Sessions is ON
         const projectDir = transcriptPath ? path.dirname(transcriptPath) : cwd;
         if (!isTrackedProjectDir(projectDir) && !this.watchAllSessions.current) {
@@ -166,6 +166,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
           (agent) => this.registerAgentHook(agent),
+          providerId,
         );
       },
       onSessionClear: (agentId, newSessionId, newTranscriptPath) => {
