@@ -147,7 +147,7 @@ For enterprise SOC 2 environments, this is a significant risk vector:
    ```jsonc
    // settings.json (can be managed via MDM/GPO)
    {
-     "pixelAgents.allowBypassPermissions": false // default: false
+     "pixelAgents.security.allowBypassPermissions": false // default: false
    }
    ```
 
