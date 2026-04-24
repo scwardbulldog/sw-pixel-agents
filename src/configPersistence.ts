@@ -26,11 +26,11 @@ export function writeConfig(config: PixelAgentsConfig): void {
   const dir = path.dirname(filePath);
   try {
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
     const json = JSON.stringify(config, null, 2);
     const tmpPath = filePath + '.tmp';
-    fs.writeFileSync(tmpPath, json, 'utf-8');
+    fs.writeFileSync(tmpPath, json, { encoding: 'utf-8', mode: 0o600 });
     fs.renameSync(tmpPath, filePath);
   } catch (err) {
     console.error('[Pixel Agents] Failed to write config file:', err);

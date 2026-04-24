@@ -44,11 +44,11 @@ export function writeLayoutToFile(layout: Record<string, unknown>): void {
   const dir = path.dirname(filePath);
   try {
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
     const json = JSON.stringify(layout, null, 2);
     const tmpPath = filePath + '.tmp';
-    fs.writeFileSync(tmpPath, json, 'utf-8');
+    fs.writeFileSync(tmpPath, json, { encoding: 'utf-8', mode: 0o600 });
     fs.renameSync(tmpPath, filePath);
   } catch (err) {
     logger.error('Failed to write layout file:', err);
