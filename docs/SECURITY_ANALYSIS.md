@@ -56,7 +56,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 
 ### High Severity Findings: 1 (Resolved)
 
-### Medium Severity Findings: 4
+### Medium Severity Findings: 5 (all Resolved)
 
 ### Low Severity Findings: 7
 
@@ -85,6 +85,7 @@ Claude Code CLI → JSONL Files → File Watchers → Extension Backend → Webv
 | SEC-015    | Info     | Missing Security Headers    | 1.0         | N/A       |
 | SEC-016    | Info     | CORS Not Configured         | 1.0         | N/A       |
 | SEC-017    | High     | Vite Path Traversal (CVE)   | 7.5         | Resolved  |
+| SEC-018    | Medium   | Console Logging Bypass      | 4.5         | Resolved  |
 
 ---
 
@@ -514,6 +515,25 @@ cd webview-ui && npm audit
 ```
 
 **Current Status**: RESOLVED - All Vite vulnerabilities patched.
+
+---
+
+### SEC-018: Console Logging Bypass (Medium - Resolved)
+
+**Location**: `src/configPersistence.ts`, `src/schemas/config.ts`, `src/schemas/layout.ts`
+
+**Description**: Three files were missed in the SEC-003 remediation and continued to call `console.error`/`console.warn` directly, bypassing the structured `logger` module. This meant error messages from config and layout parsing could expose unsanitized home-directory paths and bypass log-level controls.
+
+**Affected code (before fix)**:
+- `src/configPersistence.ts` lines 19, 36 — `console.error`
+- `src/schemas/config.ts` lines 41, 63 — `console.warn`, `console.error`
+- `src/schemas/layout.ts` lines 83, 104 — `console.warn`, `console.error`
+
+**Resolution**:
+- Imported `logger` from `./logger.js` / `../logger.js` in each file
+- Replaced all six direct `console.*` calls with the corresponding `logger.*` calls
+
+**Current Status**: RESOLVED - All logging now flows through the structured logger.
 
 ---
 

@@ -14,6 +14,7 @@ This directory contains detailed writeups for security findings identified in th
 | [SEC-011](SEC-011-jsonl-line-length.md)         | JSONL Input Length Validation                      | Low      | P3       | ✅ Resolved |
 | [SEC-012](SEC-012-debug-logging-config.md)      | Debug Logging Configuration                        | Info     | P3       | ✅ Resolved |
 | [SEC-017](SEC-017-vite-path-traversal.md)       | Vite Path Traversal Vulnerabilities                | High     | P1       | ✅ Resolved |
+| [SEC-018](SEC-018-logging-bypass.md)            | Incomplete SEC-003: Console Logging Bypass         | Medium   | P1       | ✅ Resolved |
 | [VERIFY](VERIFY-mitigated-findings.md)          | Verify Mitigated Findings                          | Low      | P3       | ✅ Verified |
 
 ## Priority Levels
