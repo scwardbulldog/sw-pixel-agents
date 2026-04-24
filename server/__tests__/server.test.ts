@@ -186,6 +186,39 @@ describe('PixelAgentsServer', () => {
     expect(res.status).toBe(404);
   });
 
+  // SEC-003: Security response headers
+  describe('SEC-003: Security response headers', () => {
+    it('sets security headers on health endpoint', async () => {
+      const config = await server.start();
+      const res = await fetch(`http://127.0.0.1:${config.port}/api/health`);
+      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(res.headers.get('X-Frame-Options')).toBe('DENY');
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      expect(res.headers.get('Content-Security-Policy')).toBe("default-src 'none'");
+    });
+
+    it('sets security headers on hook endpoint', async () => {
+      const config = await server.start();
+      const res = await postHook(
+        config.port,
+        config.token,
+        JSON.stringify({ session_id: 'test', hook_event_name: 'Stop' }),
+      );
+      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(res.headers.get('X-Frame-Options')).toBe('DENY');
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      expect(res.headers.get('Content-Security-Policy')).toBe("default-src 'none'");
+    });
+
+    it('sets security headers on 401 unauthorized', async () => {
+      const config = await server.start();
+      const res = await postHook(config.port, 'wrong-token', JSON.stringify({ session_id: 'x', hook_event_name: 'Stop' }));
+      expect(res.status).toBe(401);
+      expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+    });
+  });
+
   // 14. Hook callback does NOT fire for events missing required fields
   it('hook callback does not fire for events without session_id', async () => {
     const config = await server.start();

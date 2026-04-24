@@ -134,8 +134,24 @@ export class PixelAgentsServer {
     return this.config;
   }
 
+  /**
+   * Set standard security headers on all HTTP responses (SEC-003).
+   * Even though the server is localhost-only, defense-in-depth requires these headers to
+   * prevent MIME sniffing, caching of authenticated responses, and browser-based attacks
+   * from same-machine pages that may reach the local port.
+   */
+  private setSecurityHeaders(res: http.ServerResponse): void {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+  }
+
   /** Top-level request router. Dispatches to health or hook handler based on method + path. */
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    // Set security headers on every response (SEC-003: defense-in-depth for localhost server)
+    this.setSecurityHeaders(res);
+
     // Connection limit check (SEC-007: prevents DoS via connection exhaustion)
     if (this.activeConnections >= MAX_CONCURRENT_CONNECTIONS) {
       res.writeHead(503, { 'Retry-After': '1' });
