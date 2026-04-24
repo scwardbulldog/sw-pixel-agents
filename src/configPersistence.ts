@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 import { CONFIG_FILE_NAME, LAYOUT_FILE_DIR } from './constants.js';
+import { logger } from './logger.js';
 import { DEFAULT_CONFIG, parseConfig, type PixelAgentsConfig } from './schemas/index.js';
 
 function getConfigFilePath(): string {
@@ -16,7 +17,7 @@ export function readConfig(): PixelAgentsConfig {
     const raw = fs.readFileSync(filePath, 'utf-8');
     return parseConfig(raw);
   } catch (err) {
-    console.error('[Pixel Agents] Failed to read config file:', err);
+    logger.error('Failed to read config file:', err);
     return { ...DEFAULT_CONFIG };
   }
 }
@@ -33,6 +34,6 @@ export function writeConfig(config: PixelAgentsConfig): void {
     fs.writeFileSync(tmpPath, json, { encoding: 'utf-8', mode: 0o600 });
     fs.renameSync(tmpPath, filePath);
   } catch (err) {
-    console.error('[Pixel Agents] Failed to write config file:', err);
+    logger.error('Failed to write config file:', err);
   }
 }
