@@ -39,6 +39,7 @@ import {
 } from './assetLoader.js';
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
+  CONFIG_KEY_ALLOW_BYPASS_PERMISSIONS,
   GLOBAL_KEY_ALWAYS_SHOW_LABELS,
   GLOBAL_KEY_HOOKS_ENABLED,
   GLOBAL_KEY_HOOKS_INFO_SHOWN,
@@ -343,6 +344,31 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'openClaude') {
         const prevAgentIds = new Set(this.agents.keys());
+        const bypassPermissions = message.bypassPermissions as boolean | undefined;
+
+        // SEC-002: Check policy setting before allowing --dangerously-skip-permissions
+        if (bypassPermissions) {
+          const allowed = vscode.workspace
+            .getConfiguration()
+            .get<boolean>(CONFIG_KEY_ALLOW_BYPASS_PERMISSIONS, true);
+          if (!allowed) {
+            vscode.window.showErrorMessage(
+              'Pixel Agents: Skip permissions mode is disabled by workspace or enterprise policy ' +
+                `(${CONFIG_KEY_ALLOW_BYPASS_PERMISSIONS} = false).`,
+            );
+            return;
+          }
+          // Confirmation dialog to ensure intentional use of the dangerous flag
+          const confirm = await vscode.window.showWarningMessage(
+            'WARNING: This launches Claude Code with --dangerously-skip-permissions. ' +
+              'All tool calls will execute without approval prompts, including shell commands, ' +
+              'file writes, and network access. Only use in isolated/trusted environments.',
+            { modal: true },
+            'I understand the risks',
+          );
+          if (confirm !== 'I understand the risks') return;
+        }
+
         await launchNewTerminal(
           this.nextAgentId,
           this.nextTerminalIndex,
@@ -358,7 +384,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview,
           this.persistAgents,
           message.folderPath as string | undefined,
-          message.bypassPermissions as boolean | undefined,
+          bypassPermissions,
         );
         // Register newly created agent(s) with hook handler
         for (const [id, agent] of this.agents) {

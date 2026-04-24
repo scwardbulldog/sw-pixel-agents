@@ -21,3 +21,7 @@ export const WORKSPACE_KEY_AGENTS = 'pixel-agents.agents';
 export const WORKSPACE_KEY_AGENT_SEATS = 'pixel-agents.agentSeats';
 export const WORKSPACE_KEY_LAYOUT = 'pixel-agents.layout';
 export const TERMINAL_NAME_PREFIX = 'Claude Code';
+
+// ── Security Configuration Keys ──────────────────────────────
+/** VS Code configuration key: allow launching agents with --dangerously-skip-permissions (SEC-002) */
+export const CONFIG_KEY_ALLOW_BYPASS_PERMISSIONS = 'pixelAgents.security.allowBypassPermissions';

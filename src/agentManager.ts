@@ -97,6 +97,13 @@ export async function launchNewTerminal(
     : `claude --session-id ${sessionId}`;
   terminal.sendText(claudeCmd);
 
+  // Audit log: bypass permissions is a security-sensitive action (SEC-002)
+  if (bypassPermissions) {
+    logger.warn(
+      `[AUDIT] agent_bypass_permissions: Agent session started with --dangerously-skip-permissions (sessionId=${sessionId})`,
+    );
+  }
+
   const projectDir = getProjectDirPath(cwd);
 
   // Pre-register expected JSONL file so project scan won't treat it as a /clear file
