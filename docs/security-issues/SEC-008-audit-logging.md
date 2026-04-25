@@ -37,7 +37,7 @@ no distinct audit log category, structured format, or machine-filterable prefix.
 | Rate limit triggered (429 response)                  | Not logged                  | ✅ Structured JSON                     |
 | External asset directory added                       | Not logged                  | ✅ Structured JSON                     |
 | External asset directory removed                     | Not logged                  | ✅ Structured JSON                     |
-| Layout imported from external file                   | Not logged                  | ✅ Structured JSON (success + failure) |
+| Layout imported from external file                   | Not logged                  | ✅ Structured JSON (3 distinct events) |
 | Hook script installed/uninstalled                    | INFO level (adequate)       | ✅ Already adequate                    |
 | Extension activated/deactivated                      | INFO level (adequate)       | ✅ Already adequate                    |
 
@@ -102,7 +102,9 @@ Added audit events for:
 
 - `external_asset_directory_added` — user adds an asset pack directory
 - `external_asset_directory_removed` — user removes an asset pack directory
-- `layout_imported` (success/failure) — user imports a layout file (covers both parse failure and read errors)
+- `layout_import_succeeded` — user successfully imports a layout file
+- `layout_import_schema_failed` — imported layout fails schema validation
+- `layout_import_read_failed` — layout file cannot be read or parsed
 
 ## Acceptance Criteria
 

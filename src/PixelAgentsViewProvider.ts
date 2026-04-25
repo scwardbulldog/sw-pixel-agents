@@ -828,14 +828,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           const raw = fs.readFileSync(uris[0].fsPath, 'utf-8');
           const imported = parseLayout(raw);
           if (!imported) {
-            // Audit log: layout import failed (SEC-008)
+            // Audit log: layout import failed schema validation (SEC-008)
             auditLog({
               timestamp: new Date().toISOString(),
-              event: 'layout_imported',
+              event: 'layout_import_schema_failed',
               actor: 'user',
               resource: 'layout_file',
               outcome: 'failure',
-              details: { reason: 'schema_validation_failed' },
             });
             vscode.window.showErrorMessage('Pixel Agents: Invalid layout file.');
             return;
@@ -845,7 +844,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           // Audit log: layout imported successfully (SEC-008)
           auditLog({
             timestamp: new Date().toISOString(),
-            event: 'layout_imported',
+            event: 'layout_import_succeeded',
             actor: 'user',
             resource: 'layout_file',
             outcome: 'success',
@@ -853,14 +852,13 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           this.webview?.postMessage({ type: 'layoutLoaded', layout: imported });
           vscode.window.showInformationMessage('Pixel Agents: Layout imported successfully.');
         } catch {
-          // Audit log: layout import exception (SEC-008)
+          // Audit log: layout import file read/parse error (SEC-008)
           auditLog({
             timestamp: new Date().toISOString(),
-            event: 'layout_imported',
+            event: 'layout_import_read_failed',
             actor: 'user',
             resource: 'layout_file',
             outcome: 'failure',
-            details: { reason: 'read_error' },
           });
           vscode.window.showErrorMessage('Pixel Agents: Failed to read or parse layout file.');
         }
