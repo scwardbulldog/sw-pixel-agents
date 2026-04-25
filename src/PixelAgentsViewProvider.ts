@@ -263,7 +263,7 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           installHooks();
           copyHookScript(this.context.extensionPath);
         }
-        logger.info(`Server: ready on port ${config.port}`);
+        logger.info(`Server: ready on socket ${config.socketPath}`);
       })
       .catch((e) => {
         logger.error(`Failed to start server: ${e}`);
