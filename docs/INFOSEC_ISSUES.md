@@ -1,5 +1,9 @@
 # InfoSec Issues for SOC 2 Compliance Review
 
+> **⚠️ SUPERSEDED:** This document has been consolidated into [`SECURITY_FINDINGS.md`](SECURITY_FINDINGS.md).
+> All current finding statuses, verifications, and active trackers are maintained there.
+> This file is retained for historical reference only.
+
 > **Review Date:** 2026-04-23
 > **Scope:** Full codebase security review for enterprise SOC 2 Type II compliance
 > **Repository:** sw-pixel-agents (Pixel Agents VS Code Extension)
