@@ -4,27 +4,27 @@ This directory contains detailed writeups for security findings identified in th
 
 ## Issue Summary
 
-| ID                                              | Title                                              | Severity | Priority | Status      |
-| ----------------------------------------------- | -------------------------------------------------- | -------- | -------- | ----------- |
-| [SEC-001](SEC-001-json-schema-validation.md)    | JSON Parsing Without Schema Validation             | Medium   | P1       | ✅ Resolved |
-| [SEC-002](SEC-002-insecure-file-permissions.md) | Insecure File Permissions on Config & Layout Files | High     | P1       | ✅ Resolved |
-| [SEC-003](SEC-003-sensitive-data-in-logs.md)    | Sensitive Data Exposure in Logs                    | Medium   | P2       | ✅ Resolved |
-| [SEC-004](SEC-004-content-security-policy.md)   | Missing Content Security Policy                    | Medium   | P1       | ✅ Resolved |
-| [SEC-005](SEC-005-dangerously-skip-permissions.md) | `--dangerously-skip-permissions` Lacks Guardrails | High     | P1       | ✅ Resolved |
-| [SEC-006](SEC-006-unencrypted-transport.md)     | Unencrypted Local Transport (No TLS)               | Medium   | P2       | ✅ Resolved |
-| [SEC-007](SEC-007-rate-limiting.md)             | Missing Rate Limiting on HTTP Server               | Low      | P2       | ✅ Resolved |
-| [SEC-008](SEC-008-audit-logging.md)             | No Formal Audit Logging for Security-Relevant Events | Low    | P3       | ⚠️ Partial  |
-| [SEC-009](SEC-009-csp-unsafe-inline.md)         | CSP Allows `unsafe-inline` for Styles             | Low      | P3       | ✅ Risk Accepted |
-| [SEC-010](SEC-010-claude-settings-permissions.md) | `~/.claude/settings.json` Written Without Restrictive Permissions | Medium | P1 | ✅ Resolved |
-| [SEC-011](SEC-011-jsonl-line-length.md)         | JSONL Input Length Validation                      | Low      | P3       | ✅ Resolved |
-| [SEC-012](SEC-012-debug-logging-config.md)      | Debug Logging Configuration                        | Info     | P3       | ✅ Resolved |
-| [SEC-013](SEC-013-auth-token-at-rest.md)        | Auth Token Stored in Plaintext on Disk             | Medium   | P2       | ✅ Mitigated |
-| [SEC-014](SEC-014-symlink-attacks.md)           | Symlink Attack Surface on File Watchers            | Low      | P4       | ⚠️ Open     |
-| [SEC-015](SEC-015-security-policy.md)           | Security Policy References Upstream Repository     | Info     | P4       | ⚠️ Open     |
-| [SEC-016](SEC-016-dependency-scanning.md)       | No Automated Dependency Vulnerability Scanning     | Info     | P3       | ✅ Resolved |
-| [SEC-017](SEC-017-vite-path-traversal.md)       | Vite Path Traversal Vulnerabilities                | High     | P1       | ✅ Resolved |
-| [SEC-018](SEC-018-logging-bypass.md)            | Incomplete SEC-003: Console Logging Bypass         | Medium   | P1       | ✅ Resolved |
-| [VERIFY](VERIFY-mitigated-findings.md)          | Verify Mitigated Findings                          | Low      | P3       | ✅ Verified |
+| ID                                                 | Title                                                             | Severity | Priority | Status           |
+| -------------------------------------------------- | ----------------------------------------------------------------- | -------- | -------- | ---------------- |
+| [SEC-001](SEC-001-json-schema-validation.md)       | JSON Parsing Without Schema Validation                            | Medium   | P1       | ✅ Resolved      |
+| [SEC-002](SEC-002-insecure-file-permissions.md)    | Insecure File Permissions on Config & Layout Files                | High     | P1       | ✅ Resolved      |
+| [SEC-003](SEC-003-sensitive-data-in-logs.md)       | Sensitive Data Exposure in Logs                                   | Medium   | P2       | ✅ Resolved      |
+| [SEC-004](SEC-004-content-security-policy.md)      | Missing Content Security Policy                                   | Medium   | P1       | ✅ Resolved      |
+| [SEC-005](SEC-005-dangerously-skip-permissions.md) | `--dangerously-skip-permissions` Lacks Guardrails                 | High     | P1       | ✅ Resolved      |
+| [SEC-006](SEC-006-unencrypted-transport.md)        | Unencrypted Local Transport (No TLS)                              | Medium   | P2       | ✅ Resolved      |
+| [SEC-007](SEC-007-rate-limiting.md)                | Missing Rate Limiting on HTTP Server                              | Low      | P2       | ✅ Resolved      |
+| [SEC-008](SEC-008-audit-logging.md)                | No Formal Audit Logging for Security-Relevant Events              | Low      | P3       | ✅ Resolved      |
+| [SEC-009](SEC-009-csp-unsafe-inline.md)            | CSP Allows `unsafe-inline` for Styles                             | Low      | P3       | ✅ Risk Accepted |
+| [SEC-010](SEC-010-claude-settings-permissions.md)  | `~/.claude/settings.json` Written Without Restrictive Permissions | Medium   | P1       | ✅ Resolved      |
+| [SEC-011](SEC-011-jsonl-line-length.md)            | JSONL Input Length Validation                                     | Low      | P3       | ✅ Resolved      |
+| [SEC-012](SEC-012-debug-logging-config.md)         | Debug Logging Configuration                                       | Info     | P3       | ✅ Resolved      |
+| [SEC-013](SEC-013-auth-token-at-rest.md)           | Auth Token Stored in Plaintext on Disk                            | Medium   | P2       | ✅ Mitigated     |
+| [SEC-014](SEC-014-symlink-attacks.md)              | Symlink Attack Surface on File Watchers                           | Low      | P4       | ⚠️ Open          |
+| [SEC-015](SEC-015-security-policy.md)              | Security Policy References Upstream Repository                    | Info     | P4       | ⚠️ Open          |
+| [SEC-016](SEC-016-dependency-scanning.md)          | No Automated Dependency Vulnerability Scanning                    | Info     | P3       | ✅ Resolved      |
+| [SEC-017](SEC-017-vite-path-traversal.md)          | Vite Path Traversal Vulnerabilities                               | High     | P1       | ✅ Resolved      |
+| [SEC-018](SEC-018-logging-bypass.md)               | Incomplete SEC-003: Console Logging Bypass                        | Medium   | P1       | ✅ Resolved      |
+| [VERIFY](VERIFY-mitigated-findings.md)             | Verify Mitigated Findings                                         | Low      | P3       | ✅ Verified      |
 
 ## Priority Levels
 

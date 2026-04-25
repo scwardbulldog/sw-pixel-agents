@@ -4,6 +4,7 @@ import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 
+import { auditLog } from './auditLogger.js';
 import {
   HOOK_API_PREFIX,
   MAX_CONCURRENT_CONNECTIONS,
@@ -70,9 +71,7 @@ export class PixelAgentsServer {
       // Another VS Code window owns the server, reuse its config
       this.config = existing;
       this.ownsServer = false;
-      logger.info(
-        `Reusing existing server on socket ${existing.socketPath} (PID ${existing.pid})`,
-      );
+      logger.info(`Reusing existing server on socket ${existing.socketPath} (PID ${existing.pid})`);
       return existing;
     }
 
@@ -115,6 +114,14 @@ export class PixelAgentsServer {
         };
         this.ownsServer = true;
         this.writeServerJson(this.config);
+        // Audit log: new auth token generated (SEC-008)
+        auditLog({
+          timestamp: new Date().toISOString(),
+          event: 'server_token_generated',
+          actor: 'system',
+          resource: 'hook_server',
+          outcome: 'success',
+        });
         // Replace startup error handler with runtime error handler
         this.server!.removeListener('error', reject);
         this.server!.on('error', (err) => {
@@ -223,6 +230,14 @@ export class PixelAgentsServer {
     const authBuf = Buffer.from(authHeader);
     const expectedBuf = Buffer.from(expectedToken);
     if (authBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(authBuf, expectedBuf)) {
+      // Audit log: authentication failure (SEC-008)
+      auditLog({
+        timestamp: new Date().toISOString(),
+        event: 'auth_failure',
+        actor: 'system',
+        resource: 'hook_endpoint',
+        outcome: 'failure',
+      });
       res.writeHead(401);
       res.end('unauthorized');
       return;
@@ -239,6 +254,15 @@ export class PixelAgentsServer {
     // Rate limit by provider ID (SEC-007: prevents DoS from flooding local processes)
     if (!this.rateLimiter.isAllowed(providerId)) {
       const limit = this.rateLimiter.getLimit();
+      // Audit log: rate limit triggered (SEC-008)
+      auditLog({
+        timestamp: new Date().toISOString(),
+        event: 'rate_limit_triggered',
+        actor: 'system',
+        resource: `hook_endpoint:${providerId}`,
+        outcome: 'failure',
+        details: { limit },
+      });
       res.writeHead(429, {
         'Retry-After': '1',
         'X-RateLimit-Limit': limit.toString(),
