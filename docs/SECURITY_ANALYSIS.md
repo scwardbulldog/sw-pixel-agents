@@ -1,5 +1,9 @@
 # Security Analysis Report
 
+> **⚠️ SUPERSEDED:** This document has been consolidated into [`SECURITY_FINDINGS.md`](SECURITY_FINDINGS.md).
+> All current finding statuses, verifications, and active trackers are maintained there.
+> This file is retained for historical reference only.
+
 ## Executive Summary
 
 This document provides a comprehensive security analysis of the Pixel Agents VS Code extension, identifying vulnerabilities, exposure risks, and other potential information security concerns for enterprise software deployment.
