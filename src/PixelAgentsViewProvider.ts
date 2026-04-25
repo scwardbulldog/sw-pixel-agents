@@ -37,6 +37,7 @@ import {
   sendFloorTilesToWebview,
   sendWallTilesToWebview,
 } from './assetLoader.js';
+import { auditLog } from './auditLogger.js';
 import { readConfig, writeConfig } from './configPersistence.js';
 import {
   CONFIG_KEY_ALLOW_BYPASS_PERMISSIONS,
@@ -781,6 +782,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           cfg.externalAssetDirectories.push(newPath);
           writeConfig(cfg);
         }
+        // Audit log: external asset directory added (SEC-008)
+        auditLog({
+          timestamp: new Date().toISOString(),
+          event: 'external_asset_directory_added',
+          actor: 'user',
+          resource: 'asset_config',
+          outcome: 'success',
+          details: { count: cfg.externalAssetDirectories.length },
+        });
         await this.reloadAndSendCharacters();
         await this.reloadAndSendFurniture();
         this.webview?.postMessage({
@@ -793,6 +803,15 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           (d) => d !== (message.path as string),
         );
         writeConfig(cfg);
+        // Audit log: external asset directory removed (SEC-008)
+        auditLog({
+          timestamp: new Date().toISOString(),
+          event: 'external_asset_directory_removed',
+          actor: 'user',
+          resource: 'asset_config',
+          outcome: 'success',
+          details: { count: cfg.externalAssetDirectories.length },
+        });
         await this.reloadAndSendCharacters();
         await this.reloadAndSendFurniture();
         this.webview?.postMessage({
@@ -809,14 +828,38 @@ export class PixelAgentsViewProvider implements vscode.WebviewViewProvider {
           const raw = fs.readFileSync(uris[0].fsPath, 'utf-8');
           const imported = parseLayout(raw);
           if (!imported) {
+            // Audit log: layout import failed schema validation (SEC-008)
+            auditLog({
+              timestamp: new Date().toISOString(),
+              event: 'layout_import_schema_failed',
+              actor: 'user',
+              resource: 'layout_file',
+              outcome: 'failure',
+            });
             vscode.window.showErrorMessage('Pixel Agents: Invalid layout file.');
             return;
           }
           this.layoutWatcher?.markOwnWrite();
           writeLayoutToFile(imported);
+          // Audit log: layout imported successfully (SEC-008)
+          auditLog({
+            timestamp: new Date().toISOString(),
+            event: 'layout_import_succeeded',
+            actor: 'user',
+            resource: 'layout_file',
+            outcome: 'success',
+          });
           this.webview?.postMessage({ type: 'layoutLoaded', layout: imported });
           vscode.window.showInformationMessage('Pixel Agents: Layout imported successfully.');
         } catch {
+          // Audit log: layout import file read/parse error (SEC-008)
+          auditLog({
+            timestamp: new Date().toISOString(),
+            event: 'layout_import_read_failed',
+            actor: 'user',
+            resource: 'layout_file',
+            outcome: 'failure',
+          });
           vscode.window.showErrorMessage('Pixel Agents: Failed to read or parse layout file.');
         }
       }

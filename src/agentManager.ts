@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
+import { auditLog } from './auditLogger.js';
 import {
   TERMINAL_NAME_PREFIX,
   WORKSPACE_KEY_AGENT_SEATS,
@@ -97,11 +98,16 @@ export async function launchNewTerminal(
     : `claude --session-id ${sessionId}`;
   terminal.sendText(claudeCmd);
 
-  // Audit log: bypass permissions is a security-sensitive action (SEC-002)
+  // Audit log: bypass permissions is a security-sensitive action (SEC-008)
   if (bypassPermissions) {
-    logger.warn(
-      `[AUDIT] agent_bypass_permissions: Agent session started with --dangerously-skip-permissions (sessionId=${sessionId})`,
-    );
+    auditLog({
+      timestamp: new Date().toISOString(),
+      event: 'agent_bypass_permissions',
+      actor: 'user',
+      resource: 'claude_terminal',
+      outcome: 'success',
+      details: { sessionId: sessionId.slice(0, 8) },
+    });
   }
 
   const projectDir = getProjectDirPath(cwd);
@@ -395,13 +401,9 @@ export function restoreAgents(
     agents.set(p.id, agent);
     knownJsonlFiles.add(p.jsonlFile);
     if (isExternal) {
-      logger.debug(
-        `Terminal: Agent ${p.id} - restored external → ${path.basename(p.jsonlFile)}`,
-      );
+      logger.debug(`Terminal: Agent ${p.id} - restored external → ${path.basename(p.jsonlFile)}`);
     } else {
-      logger.debug(
-        `Terminal: Agent ${p.id} - restored → terminal "${p.terminalName}"`,
-      );
+      logger.debug(`Terminal: Agent ${p.id} - restored → terminal "${p.terminalName}"`);
     }
 
     if (p.id > maxId) maxId = p.id;
@@ -472,9 +474,7 @@ export function restoreAgents(
       for (const id of restoredTerminalIds) {
         const agent = agents.get(id);
         if (agent && !agent.isExternal && agent.linesProcessed === 0) {
-          logger.debug(
-            `Terminal: Agent ${id} - removing restored agent, no data received`,
-          );
+          logger.debug(`Terminal: Agent ${id} - removing restored agent, no data received`);
           agent.terminalRef?.dispose();
           removeAgent(
             id,
