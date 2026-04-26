@@ -12,6 +12,7 @@ import {
 } from './constants.js';
 import { logger } from './logger.js';
 import { parseLayout } from './schemas/index.js';
+import { isSymlink } from './symlinkCheck.js';
 
 export interface LayoutWatcher {
   markOwnWrite(): void;
@@ -26,6 +27,11 @@ export function readLayoutFromFile(): Record<string, unknown> | null {
   const filePath = getLayoutFilePath();
   try {
     if (!fs.existsSync(filePath)) return null;
+    // SEC-014: Reject symlinks to prevent symlink-based path traversal attacks.
+    if (isSymlink(filePath)) {
+      logger.warn(`SEC-014: Refusing to read symlinked layout file: ${filePath}`);
+      return null;
+    }
     const raw = fs.readFileSync(filePath, 'utf-8');
     const layout = parseLayout(raw);
     if (!layout) {
