@@ -39,6 +39,7 @@ import type { TeamProvider } from '../server/src/teamProvider.js';
 import { removeAgent } from './agentManager.js';
 import { TERMINAL_NAME_PREFIX } from './constants.js';
 import { logger } from './logger.js';
+import { isSymlink } from './symlinkCheck.js';
 import { cancelPermissionTimer, cancelWaitingTimer, clearAgentActivity } from './timerManager.js';
 import { processTranscriptLine } from './transcriptParser.js';
 import type { AgentState } from './types.js';
@@ -176,6 +177,11 @@ export function readNewLines(
   const agent = agents.get(agentId);
   if (!agent) return;
   try {
+    // SEC-014: Reject symlinks to prevent symlink-based path traversal attacks.
+    if (isSymlink(agent.jsonlFile)) {
+      logger.warn(`SEC-014: Refusing to read symlinked JSONL file: ${agent.jsonlFile}`);
+      return;
+    }
     const stat = fs.statSync(agent.jsonlFile);
     if (stat.size <= agent.fileOffset) return;
 
@@ -1257,9 +1263,7 @@ function scanGlobalProjectDirs(
 
       const folderName = folderNameFromProjectDir(dir.name);
       knownJsonlFiles.add(file);
-      logger.debug(
-        `Watcher: detected global session ${path.basename(file)} (${folderName})`,
-      );
+      logger.debug(`Watcher: detected global session ${path.basename(file)} (${folderName})`);
       adoptExternalSession(
         file,
         dirPath,
