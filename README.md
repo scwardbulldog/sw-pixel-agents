@@ -34,7 +34,8 @@ This is the source code for the free Pixel Agents extension for VS Code — inst
 
 ## Features
 
-- **One agent, one character** — every Claude Code terminal gets its own animated character
+- **One agent, one character** — every Claude Code or Copilot CLI terminal gets its own animated character
+- **Multi-provider support** — works with Claude Code and GitHub Copilot CLI; select your preferred provider from the + Agent menu
 - **Live activity tracking** — characters animate based on what the agent is actually doing (writing, reading, running commands)
 - **Office layout editor** — design your office with floors, walls, and furniture using a built-in editor
 - **Speech bubbles** — visual indicators when an agent is waiting for input or needs permission
@@ -51,7 +52,9 @@ This is the source code for the free Pixel Agents extension for VS Code — inst
 ## Requirements
 
 - VS Code 1.105.0 or later
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
+- At least one AI CLI installed:
+  - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) — recommended; supports instant detection via hooks
+  - [GitHub Copilot CLI](https://docs.github.com/en/copilot) — polling-based detection via events.jsonl
 - **Platform**: Windows, Linux, and macOS are supported
 
 ## Getting Started
@@ -73,10 +76,11 @@ Then press **F5** in VS Code to launch the Extension Development Host.
 ### Usage
 
 1. Open the **Pixel Agents** panel (it appears in the bottom panel area alongside your terminal)
-2. Click **+ Agent** to spawn a new Claude Code terminal and its character. Right-click for the option to launch with `--dangerously-skip-permissions` (bypasses all tool approval prompts)
-3. Start coding with Claude — watch the character react in real time
+2. Click **+ Agent** to see the provider selection menu (Claude Code or Copilot CLI), then click to spawn a terminal and character. Hover first for the option to launch with permission bypass
+3. Start coding with your AI agent — watch the character react in real time
 4. Click a character to select it, then click a seat to reassign it
 5. Click **Layout** to open the office editor and customize your space
+6. Use **Settings** to enable/disable providers or configure other options
 
 ## Layout Editor
 
@@ -104,7 +108,7 @@ Characters are based on the amazing work of [JIK-A-4, Metro City](https://jik-a-
 
 ## How It Works
 
-Pixel Agents watches Claude Code's JSONL transcript files to track what each agent is doing. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No modifications to Claude Code are needed — it's purely observational.
+Pixel Agents watches transcript files to track what each agent is doing. For Claude Code, it uses JSONL files in `~/.claude/projects/`. For Copilot CLI, it watches `events.jsonl` files in `~/.copilot/session-state/`. When an agent uses a tool (like writing a file or running a command), the extension detects it and updates the character's animation accordingly. No modifications to the CLI tools are needed — it's purely observational.
 
 The webview runs a lightweight game loop with canvas rendering, BFS pathfinding, and a character state machine (idle → walk → type/read). Everything is pixel-perfect at integer zoom levels.
 
@@ -140,11 +144,10 @@ The long-term vision is an interface where managing AI agents feels like playing
 For this to work, the architecture needs to be modular at every level:
 
 - **Platform-agnostic**: VS Code extension today, Electron app, web app, or any other host environment tomorrow.
-- **Agent-agnostic**: Claude Code today, but built to support Codex, OpenCode, Gemini, Cursor, Copilot, and others through composable adapters.
+- **Agent-agnostic**: Claude Code and Copilot CLI today, built to support Codex, OpenCode, Gemini, Cursor, and others through composable adapters.
 - **Theme-agnostic**: community-created assets, skins, and themes from any contributor.
 
 We're actively working on the core module and adapter architecture that makes this possible. If you're interested to talk about this further, please visit our [Discussions Section](https://github.com/pablodelucca/pixel-agents/discussions).
-
 
 ## Community & Contributing
 

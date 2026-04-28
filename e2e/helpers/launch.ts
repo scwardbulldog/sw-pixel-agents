@@ -8,6 +8,8 @@ const REPO_ROOT = path.join(__dirname, '../..');
 const VSCODE_PATH_FILE = path.join(REPO_ROOT, '.vscode-test/vscode-executable.txt');
 const MOCK_CLAUDE_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-claude');
 const MOCK_CLAUDE_CMD_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-claude.cmd');
+const MOCK_COPILOT_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-copilot');
+const MOCK_COPILOT_CMD_PATH = path.join(REPO_ROOT, 'e2e/fixtures/mock-copilot.cmd');
 const ARTIFACTS_DIR = path.join(REPO_ROOT, 'test-results/e2e');
 const IS_WINDOWS = process.platform === 'win32';
 const PATH_SEP = IS_WINDOWS ? ';' : ':';
@@ -19,8 +21,10 @@ export interface VSCodeSession {
   tmpHome: string;
   /** Workspace directory opened in VS Code. */
   workspaceDir: string;
-  /** Path to the mock invocations log. */
+  /** Path to the mock claude invocations log. */
   mockLogFile: string;
+  /** Path to the mock copilot invocations log. */
+  mockCopilotLogFile: string;
   cleanup: () => Promise<void>;
 }
 
@@ -70,14 +74,19 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
     }
   }
 
-  // Copy mock-claude into an isolated bin dir
+  // Copy mock-claude and mock-copilot into an isolated bin dir
   if (IS_WINDOWS) {
-    // Windows: copy the .cmd batch file as 'claude.cmd'
+    // Windows: copy the .cmd batch files
     fs.copyFileSync(MOCK_CLAUDE_CMD_PATH, path.join(mockBinDir, 'claude.cmd'));
+    fs.copyFileSync(MOCK_COPILOT_CMD_PATH, path.join(mockBinDir, 'copilot.cmd'));
   } else {
-    const mockDest = path.join(mockBinDir, 'claude');
-    fs.copyFileSync(MOCK_CLAUDE_PATH, mockDest);
-    fs.chmodSync(mockDest, 0o755);
+    const mockClaudeDest = path.join(mockBinDir, 'claude');
+    fs.copyFileSync(MOCK_CLAUDE_PATH, mockClaudeDest);
+    fs.chmodSync(mockClaudeDest, 0o755);
+
+    const mockCopilotDest = path.join(mockBinDir, 'copilot');
+    fs.copyFileSync(MOCK_COPILOT_PATH, mockCopilotDest);
+    fs.chmodSync(mockCopilotDest, 0o755);
   }
 
   // macOS: VS Code's integrated terminal resolves PATH from the login shell,
@@ -112,6 +121,7 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
   }
 
   const mockLogFile = path.join(tmpHome, '.claude-mock', 'invocations.log');
+  const mockCopilotLogFile = path.join(tmpHome, '.copilot-mock', 'invocations.log');
 
   // --- Video output dir ---
   const safeTitle = testTitle.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
@@ -214,7 +224,15 @@ export async function launchVSCode(testTitle: string): Promise<VSCodeSession> {
       await window.waitForTimeout(500);
     }
 
-    return { app, window, tmpHome, workspaceDir: resolvedWorkspaceDir, mockLogFile, cleanup };
+    return {
+      app,
+      window,
+      tmpHome,
+      workspaceDir: resolvedWorkspaceDir,
+      mockLogFile,
+      mockCopilotLogFile,
+      cleanup,
+    };
   } catch (error) {
     await cleanup();
     throw error;

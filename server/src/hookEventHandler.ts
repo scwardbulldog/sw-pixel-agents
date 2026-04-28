@@ -40,11 +40,13 @@ interface BufferedEvent {
 /** Callback for session lifecycle events detected via hooks. */
 interface SessionLifecycleCallbacks {
   /** Called when an external session is detected (unknown session_id in SessionStart).
-   *  transcriptPath is undefined for providers without transcripts (OpenCode, Copilot). */
+   *  transcriptPath is undefined for providers without transcripts (OpenCode, Copilot).
+   *  providerId identifies which provider detected this session ('claude', 'copilot', etc.). */
   onExternalSessionDetected?: (
     sessionId: string,
     transcriptPath: string | undefined,
     cwd: string,
+    providerId: string,
   ) => void;
   /** Called when /clear is detected via hooks (SessionEnd reason=clear + SessionStart source=clear). */
   onSessionClear?: (
@@ -70,6 +72,8 @@ interface PendingExternalSession {
   /** Transcript file path. Undefined for providers without transcripts (OpenCode, Copilot). */
   transcriptPath: string | undefined;
   cwd: string;
+  /** Provider identifier ('claude', 'copilot', etc.). */
+  providerId: string;
 }
 
 export class HookEventHandler {
@@ -158,9 +162,7 @@ export class HookEventHandler {
         if (agent) {
           agent.hookDelivered = true;
         }
-        logger.debug(
-            `Hook: Agent ${existingAgentId} - SessionStart(source=${source}) known`,
-          );
+        logger.debug(`Hook: Agent ${existingAgentId} - SessionStart(source=${source}) known`);
         return;
       }
       // Check auto-discovery (agent exists but not yet registered for hooks)
@@ -168,9 +170,7 @@ export class HookEventHandler {
         if (agent.sessionId === event.session_id) {
           this.registerAgent(agent.sessionId, id);
           agent.hookDelivered = true;
-          logger.debug(
-              `Agent ${id} - SessionStart(source=${source}) auto-discovered`,
-            );
+          logger.debug(`Agent ${id} - SessionStart(source=${source}) auto-discovered`);
           return;
         }
       }
@@ -209,17 +209,16 @@ export class HookEventHandler {
           this.lifecycleCallbacks.onSessionResume?.(transcriptPath);
         }
         logger.debug(
-            `SessionStart(source=${source}) -> pending external session ${sid}..., awaiting confirmation`,
-          );
+          `SessionStart(source=${source}) -> pending external session ${sid}..., awaiting confirmation`,
+        );
         this.pendingExternalSessions.set(event.session_id, {
           sessionId: event.session_id,
           transcriptPath,
           cwd: cwd ?? '',
+          providerId: _providerId,
         });
       } else {
-        logger.debug(
-            `SessionStart -> unknown session ${sid}..., no transcript_path`,
-          );
+        logger.debug(`SessionStart -> unknown session ${sid}..., no transcript_path`);
       }
       return;
     }
@@ -229,8 +228,8 @@ export class HookEventHandler {
     if (normEvent.kind === 'sessionEnd' && this.pendingExternalSessions.has(event.session_id)) {
       this.pendingExternalSessions.delete(event.session_id);
       logger.debug(
-          `SessionEnd discarded pending external session ${event.session_id.slice(0, 8)}...`,
-        );
+        `SessionEnd discarded pending external session ${event.session_id.slice(0, 8)}...`,
+      );
       return;
     }
 
@@ -239,12 +238,13 @@ export class HookEventHandler {
       const pending = this.pendingExternalSessions.get(event.session_id)!;
       this.pendingExternalSessions.delete(event.session_id);
       logger.debug(
-          `${eventName} confirmed external session ${event.session_id.slice(0, 8)}..., creating agent`,
-        );
+        `${eventName} confirmed external session ${event.session_id.slice(0, 8)}..., creating agent`,
+      );
       this.lifecycleCallbacks.onExternalSessionDetected?.(
         pending.sessionId,
         pending.transcriptPath,
         pending.cwd,
+        pending.providerId,
       );
       // Re-process this event now that the agent exists
       this.handleEvent(_providerId, event);
@@ -274,8 +274,8 @@ export class HookEventHandler {
       );
       if (isPending || hasBuffered || hasUnregisteredAgents) {
         logger.debug(
-            `${eventName} - unknown session ${event.session_id.slice(0, 8)}..., buffering`,
-          );
+          `${eventName} - unknown session ${event.session_id.slice(0, 8)}..., buffering`,
+        );
         this.bufferEvent(_providerId, event);
       }
       return;
@@ -285,9 +285,7 @@ export class HookEventHandler {
     if (!agent) return;
 
     agent.hookDelivered = true;
-    logger.debug(
-        `Agent ${agentId} - ${eventName} (session=${event.session_id.slice(0, 8)}...)`,
-      );
+    logger.debug(`Agent ${agentId} - ${eventName} (session=${event.session_id.slice(0, 8)}...)`);
 
     const webview = this.getWebview();
 
@@ -344,9 +342,7 @@ export class HookEventHandler {
     webview: vscode.Webview | undefined,
   ): void {
     const reason = normEvent.reason;
-    logger.debug(
-        `Agent ${agentId} - SessionEnd(reason=${reason ?? 'unknown'})`,
-      );
+    logger.debug(`Agent ${agentId} - SessionEnd(reason=${reason ?? 'unknown'})`);
 
     // /clear and /resume send SessionEnd then SessionStart. Wait briefly for the follow-up.
     // All other reasons (exit, logout, prompt_input_exit) are final -- despawn immediately.
@@ -356,8 +352,8 @@ export class HookEventHandler {
       agent.pendingClear = true;
       this.markAgentWaiting(agent, agentId, webview);
       logger.debug(
-          `Agent ${agentId} - SessionEnd(reason=${reason}), awaiting possible SessionStart`,
-        );
+        `Agent ${agentId} - SessionEnd(reason=${reason}), awaiting possible SessionStart`,
+      );
       // Safety net: if SessionStart never arrives, clean up the zombie agent
       setTimeout(() => {
         if (agent.pendingClear) {
@@ -485,8 +481,8 @@ export class HookEventHandler {
     // Mirrors the same gate used by the periodic scanAllTeammateFiles fallback.
     if (this.provider.team && agent.currentHookIsTeammateSpawn === true && agent.teamName) {
       logger.debug(
-          `Agent ${agentId} - SubagentStart: teammate "${agentType}" detected, triggering discovery`,
-        );
+        `Agent ${agentId} - SubagentStart: teammate "${agentType}" detected, triggering discovery`,
+      );
       this.lifecycleCallbacks.onTeammateDetected?.(agentId, event.session_id, agentType);
       return;
     }
@@ -554,9 +550,7 @@ export class HookEventHandler {
     //   - SessionEnd on lead (removeTeammates in ViewProvider)
     const inlineTeammates = getInlineTeammates(agentId, this.agents);
     if (inlineTeammates.length > 0) {
-      logger.debug(
-          `Agent ${agentId} - SubagentStop: marking inline teammates as waiting`,
-        );
+      logger.debug(`Agent ${agentId} - SubagentStop: marking inline teammates as waiting`);
       for (const [id, a] of inlineTeammates) {
         this.markAgentWaiting(a, id, webview);
       }
@@ -663,8 +657,8 @@ export class HookEventHandler {
 
     // Fallback: mark all inline teammates as waiting
     logger.debug(
-        `TeammateIdle (no agent_type match) -> marking ${inlineTeammates.length} teammate(s) waiting`,
-      );
+      `TeammateIdle (no agent_type match) -> marking ${inlineTeammates.length} teammate(s) waiting`,
+    );
     for (const [id, a] of inlineTeammates) {
       this.markAgentWaiting(a, id, webview);
     }
@@ -678,8 +672,8 @@ export class HookEventHandler {
     const subject = (event.subject as string) ?? '';
     const agentType = this.provider.team?.extractTeammateNameFromEvent(event);
     logger.debug(
-        `Agent ${agentId} - TaskCompleted: ${subject}${agentType ? ` (agent_type=${agentType})` : ''}`,
-      );
+      `Agent ${agentId} - TaskCompleted: ${subject}${agentType ? ` (agent_type=${agentType})` : ''}`,
+    );
 
     const inlineTeammates = getInlineTeammates(agentId, this.agents);
     if (inlineTeammates.length === 0) return;
@@ -769,8 +763,8 @@ export class HookEventHandler {
     this.bufferedEvents = this.bufferedEvents.filter((b) => b.event.session_id !== sessionId);
     if (toFlush.length > 0) {
       logger.debug(
-          `Hook: flushing ${toFlush.length} buffered event(s) for session ${sessionId.slice(0, 8)}...`,
-        );
+        `Hook: flushing ${toFlush.length} buffered event(s) for session ${sessionId.slice(0, 8)}...`,
+      );
     }
     for (const { providerId, event } of toFlush) {
       this.handleEvent(providerId, event);

@@ -11,6 +11,8 @@ import {
   FUEL_GAUGE_HEIGHT_PX,
   FUEL_GAUGE_WIDTH_PX,
   MAX_CONTEXT_TOKENS,
+  PROVIDER_COLOR_COPILOT,
+  PROVIDER_LABEL_COPILOT,
   TEAM_LEAD_COLOR,
   TEAM_ROLE_COLOR,
   TOKEN_CRITICAL_THRESHOLD,
@@ -64,6 +66,20 @@ function getFuelColor(ratio: number): string {
   if (ratio >= TOKEN_DANGER_THRESHOLD) return FUEL_COLOR_DANGER;
   if (ratio >= TOKEN_WARN_THRESHOLD) return FUEL_COLOR_WARN;
   return FUEL_COLOR_OK;
+}
+
+function getProviderInfo(providerId: 'claude' | 'copilot' | undefined): {
+  label: string;
+  color: string;
+} | null {
+  if (!providerId || providerId === 'claude') {
+    // Don't show label for Claude (default) to keep UI clean
+    return null;
+  }
+  if (providerId === 'copilot') {
+    return { label: PROVIDER_LABEL_COPILOT, color: PROVIDER_COLOR_COPILOT };
+  }
+  return null;
 }
 
 export function ToolOverlay({
@@ -157,7 +173,8 @@ export function ToolOverlay({
         const teamRoleLabel = ch.isTeamLead ? 'LEAD' : ch.agentName || null;
         const totalTokens = ch.inputTokens + ch.outputTokens;
         const tokenRatio = totalTokens / MAX_CONTEXT_TOKENS;
-        const hasExtraLines = !!(ch.folderName || teamRoleLabel);
+        const providerInfo = !isSub ? getProviderInfo(ch.providerId) : null;
+        const hasExtraLines = !!(ch.folderName || teamRoleLabel || providerInfo);
 
         return (
           <div
@@ -179,6 +196,18 @@ export function ToolOverlay({
                 />
               )}
               <div className="flex flex-col gap-0 overflow-hidden">
+                {providerInfo && (
+                  <span
+                    className="overflow-hidden text-ellipsis block leading-none"
+                    style={{
+                      fontSize: '16px',
+                      color: providerInfo.color,
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    {providerInfo.label}
+                  </span>
+                )}
                 {teamRoleLabel && (
                   <span
                     className="overflow-hidden text-ellipsis block leading-none"

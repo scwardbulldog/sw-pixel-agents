@@ -566,6 +566,7 @@ describe('HookEventHandler', () => {
       'ext-sess',
       '/projects/test/ext-sess.jsonl',
       '/projects/test',
+      'claude',
     );
     // Stop was re-processed after agent creation
     const agent = agents.get(2);
@@ -711,6 +712,7 @@ describe('HookEventHandler', () => {
       'no-transcript-sess',
       undefined,
       '/projects/test',
+      'claude',
     );
   });
 

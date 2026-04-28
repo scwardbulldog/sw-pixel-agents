@@ -22,6 +22,7 @@ import { OfficeState } from './office/engine/officeState.js';
 import { isRotatable } from './office/layout/furnitureCatalog.js';
 import { EditTool } from './office/types.js';
 import { isBrowserRuntime } from './runtime.js';
+import { isStandaloneMode } from './standaloneClient.js';
 import { vscode } from './vscodeApi.js';
 
 // Game state lives outside React — updated imperatively by message handlers
@@ -36,10 +37,10 @@ function getOfficeState(): OfficeState {
 }
 
 function App() {
-  // Browser runtime (dev or static dist): dispatch mock messages after the
-  // useExtensionMessages listener has been registered.
+  // Browser dev mode only: dispatch mock messages after the useExtensionMessages
+  // listener has been registered. Skip in standalone mode (server sends real data).
   useEffect(() => {
-    if (isBrowserRuntime) {
+    if (isBrowserRuntime && !isStandaloneMode()) {
       void import('./browserMock.js').then(({ dispatchMockMessages }) => dispatchMockMessages());
     }
   }, []);
@@ -71,6 +72,9 @@ function App() {
     hooksEnabled,
     setHooksEnabled,
     hooksInfoShown,
+    enabledProviders,
+    setEnabledProviders,
+    defaultProvider,
   } = useExtensionMessages(getOfficeState, editor.setLastSavedLayout, isEditDirty);
 
   // Show migration notice once layout reset is detected
@@ -321,11 +325,12 @@ function App() {
 
       <BottomToolbar
         isEditMode={editor.isEditMode}
-        onOpenClaude={editor.handleOpenClaude}
         onToggleEditMode={editor.handleToggleEditMode}
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={() => setIsSettingsOpen((v) => !v)}
         workspaceFolders={workspaceFolders}
+        enabledProviders={enabledProviders}
+        defaultProvider={defaultProvider}
       />
 
       <VersionIndicator
@@ -360,6 +365,17 @@ function App() {
           const newVal = !hooksEnabled;
           setHooksEnabled(newVal);
           vscode.postMessage({ type: 'setHooksEnabled', enabled: newVal });
+        }}
+        enabledProviders={enabledProviders}
+        onToggleProvider={(provider) => {
+          const isEnabled = enabledProviders.includes(provider);
+          // Prevent disabling the last provider
+          if (isEnabled && enabledProviders.length === 1) return;
+          const newProviders = isEnabled
+            ? enabledProviders.filter((p) => p !== provider)
+            : [...enabledProviders, provider];
+          setEnabledProviders(newProviders);
+          vscode.postMessage({ type: 'setEnabledProviders', providers: newProviders });
         }}
       />
 

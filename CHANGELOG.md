@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.4.0
+
+### Features
+
+- **GitHub Copilot CLI support** — Pixel Agents now works with GitHub Copilot CLI alongside Claude Code. Select your preferred provider from the + Agent menu. Copilot agents appear with a distinct "Copilot" label in their overlay.
+- **Multi-provider architecture** — The extension now supports multiple AI CLI providers through a unified adapter system. Enable/disable providers in Settings to control which ones appear in the + Agent menu.
+- **Provider selection in toolbar** — The + Agent button now shows a provider selection dropdown when multiple providers are enabled, allowing you to choose between Claude Code and Copilot CLI for each new agent.
+
+### Technical Notes
+
+- Copilot session detection uses `~/.copilot/session-state/<session-id>/events.jsonl` files
+- Copilot currently uses polling-based detection (500ms) as hooks are not yet available
+- Provider ID is tracked per-agent for proper identification and UI display
+
 ## v1.3.0
 
 ### Features
