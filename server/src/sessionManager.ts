@@ -200,8 +200,8 @@ export class SessionManager {
       writeLayoutToFile(layout);
       // Invalidate cached assets so next client gets the updated layout
       this.assetMessages = null;
-    } catch {
-      logger.error('Failed to save layout');
+    } catch (e) {
+      logger.error(`Failed to save layout: ${e}`);
     }
   }
 
@@ -211,8 +211,8 @@ export class SessionManager {
       const cfg = readConfig();
       cfg.enabledProviders = providers;
       writeConfig(cfg);
-    } catch {
-      logger.error('Failed to save enabled providers');
+    } catch (e) {
+      logger.error(`Failed to save enabled providers: ${e}`);
     }
   }
 
