@@ -96,6 +96,11 @@ export function signalReady(): void {
  * Check if running in standalone mode (served from localhost with WebSocket available).
  */
 export function isStandaloneMode(): boolean {
+  // Vite dev server should always use browser mock mode, even on localhost.
+  if (import.meta.env.DEV) {
+    return false;
+  }
+
   // In standalone mode, we're served from the pixel-agents server
   // Detection: not in VS Code (no acquireVsCodeApi) and on localhost
   if (typeof acquireVsCodeApi !== 'undefined') {
