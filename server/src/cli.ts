@@ -289,19 +289,36 @@ async function main(): Promise<void> {
       // Copy hook script to ~/.pixel-agents/hooks/ if not present
       const hooksDir = path.join(os.homedir(), '.pixel-agents', 'hooks');
       const hookScriptDest = path.join(hooksDir, 'claude-hook.js');
-      const hookScriptSrc = path.join(__dirname, 'hooks', 'claude-hook.js');
+
+      // Search multiple candidate paths for the built hook script:
+      // 1. Next to bundled CLI (server/dist/hooks/) — production build
+      // 2. Root dist/hooks/ from server/src/ — tsx dev mode
+      // 3. Root dist/hooks/ from project root — tsx dev mode (alt)
+      const hookScriptCandidates = [
+        path.join(__dirname, 'hooks', 'claude-hook.js'),
+        path.join(__dirname, '..', '..', 'dist', 'hooks', 'claude-hook.js'),
+        path.join(__dirname, '..', 'dist', 'hooks', 'claude-hook.js'),
+      ];
+      const hookScriptSrc = hookScriptCandidates.find((p) => fs.existsSync(p));
 
       if (!fs.existsSync(hooksDir)) {
         fs.mkdirSync(hooksDir, { recursive: true, mode: 0o700 });
       }
 
-      if (fs.existsSync(hookScriptSrc) && !fs.existsSync(hookScriptDest)) {
+      if (hookScriptSrc && !fs.existsSync(hookScriptDest)) {
         fs.copyFileSync(hookScriptSrc, hookScriptDest);
         fs.chmodSync(hookScriptDest, 0o755);
       }
 
-      installHooks();
-      console.log('✓ Claude Code hooks installed');
+      // Only install hooks in ~/.claude/settings.json if the script exists at destination
+      if (fs.existsSync(hookScriptDest)) {
+        installHooks();
+        console.log('✓ Claude Code hooks installed');
+      } else {
+        console.warn(
+          '⚠ Hook script not found — run `npm run build` first to enable Claude Code hooks',
+        );
+      }
     } catch (e) {
       console.warn(`⚠ Could not install hooks: ${e}`);
     }
