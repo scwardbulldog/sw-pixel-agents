@@ -11,16 +11,18 @@
  *   --help             Show this help message
  */
 import * as childProcess from 'child_process';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 
+import { HOOK_API_PREFIX, MAX_HOOK_BODY_SIZE } from './constants.js';
 import { logger } from './logger.js';
 import { installHooks, uninstallHooks } from './providers/hook/claude/claudeHookInstaller.js';
 import { SessionManager } from './sessionManager.js';
 import { SessionScanner } from './sessionScanner.js';
-import { createStaticHandler, findWebviewDist } from './staticServer.js';
+import { createStaticHandler, findAssetsDir, findWebviewDist } from './staticServer.js';
 import { WebSocketBroadcaster } from './webSocketServer.js';
 
 interface CliOptions {
@@ -167,25 +169,40 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Find webview dist directory
+  // Find webview dist directory and assets directory
   const webviewDist = findWebviewDist();
-  if (!webviewDist) {
-    console.error('Error: webview-ui/dist not found. Run `npm run build` first.');
+  const assetsDir = findAssetsDir();
+
+  if (!webviewDist && !assetsDir) {
+    console.error(
+      'Error: Neither webview dist nor source assets found. Run `npm run build` first.',
+    );
     process.exit(1);
   }
 
   console.log('🎮 Pixel Agents - Standalone Mode\n');
 
+  // Generate auth token for hooks
+  const token = crypto.randomUUID();
+
   // Create HTTP server
-  const staticHandler = createStaticHandler({ root: webviewDist });
+  const staticHandler = webviewDist ? createStaticHandler({ root: webviewDist }) : null;
   const server = http.createServer((req, res) => {
     // Try static files first
-    if (staticHandler(req, res)) return;
+    if (staticHandler && staticHandler(req, res)) return;
 
     // Health endpoint
     if (req.method === 'GET' && req.url === '/api/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok', mode: 'standalone' }));
+      return;
+    }
+
+    // Hook endpoint: POST /api/hooks/:providerId
+    if (req.method === 'POST' && req.url?.startsWith(HOOK_API_PREFIX + '/')) {
+      handleHookRequest(req, res, token, (providerId, event) => {
+        sessionManager.handleHookEvent(providerId, event);
+      });
       return;
     }
 
@@ -215,19 +232,41 @@ async function main(): Promise<void> {
   const sessionManager = new SessionManager(broadcaster, scanner);
 
   // Set assets directory for the session manager
-  const assetsDir = path.join(webviewDist, 'assets');
-  if (fs.existsSync(assetsDir)) {
+  if (assetsDir) {
     sessionManager.setAssetsDir(assetsDir);
+  } else if (webviewDist) {
+    const distAssets = path.join(webviewDist, 'assets');
+    if (fs.existsSync(distAssets)) {
+      sessionManager.setAssetsDir(distAssets);
+    }
   }
+
+  // Handle inbound WebSocket messages from browser clients
+  broadcaster.onMessage((msg) => {
+    switch (msg.type) {
+      case 'saveLayout':
+        sessionManager.handleSaveLayout(msg.layout as Record<string, unknown>);
+        break;
+      case 'setEnabledProviders':
+        sessionManager.handleSetEnabledProviders(
+          msg.providers as ('claude' | 'copilot')[],
+        );
+        break;
+      case 'openClaude':
+      case 'openCopilot':
+      case 'focusAgent':
+      case 'closeAgent':
+        break; // no-op — no terminals in standalone mode
+      case 'webviewReady':
+        break; // already handled by onConnection callback
+    }
+  });
 
   // Handle new WebSocket connections - send initial state
   broadcaster.onConnection((ws) => {
     const messages = sessionManager.getInitialStateMessages();
     broadcaster.sendInitialState(ws, messages);
   });
-
-  // Generate auth token for hooks
-  const token = crypto.randomUUID();
 
   // Start server
   const port = options.port ?? 0;
@@ -309,6 +348,70 @@ async function main(): Promise<void> {
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+}
+
+/**
+ * Handle POST /api/hooks/:providerId requests.
+ * Validates auth, enforces body size limit, parses JSON, and dispatches.
+ */
+function handleHookRequest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  token: string,
+  onEvent: (providerId: string, event: Record<string, unknown>) => void,
+): void {
+  // Validate auth token (timing-safe comparison)
+  const authHeader = req.headers['authorization'] ?? '';
+  const expectedToken = `Bearer ${token}`;
+  const authBuf = Buffer.from(authHeader);
+  const expectedBuf = Buffer.from(expectedToken);
+  if (authBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(authBuf, expectedBuf)) {
+    res.writeHead(401);
+    res.end('unauthorized');
+    return;
+  }
+
+  // Extract provider ID from URL: /api/hooks/claude -> "claude"
+  const providerId = req.url!.slice(HOOK_API_PREFIX.length + 1);
+  if (!providerId || !/^[a-z0-9-]+$/.test(providerId)) {
+    res.writeHead(400);
+    res.end('invalid provider id');
+    return;
+  }
+
+  // Read body with size limit
+  let body = '';
+  let bodySize = 0;
+  let responded = false;
+
+  req.on('data', (chunk: Buffer) => {
+    bodySize += chunk.length;
+    if (bodySize > MAX_HOOK_BODY_SIZE && !responded) {
+      responded = true;
+      res.writeHead(413);
+      res.end('payload too large');
+      req.destroy();
+      return;
+    }
+    if (!responded) {
+      body += chunk.toString();
+    }
+  });
+
+  req.on('end', () => {
+    if (responded) return;
+    try {
+      const event = JSON.parse(body) as Record<string, unknown>;
+      if (event.session_id && event.hook_event_name) {
+        onEvent(providerId, event);
+      }
+      res.writeHead(200);
+      res.end('ok');
+    } catch {
+      res.writeHead(400);
+      res.end('invalid json');
+    }
+  });
 }
 
 main().catch((e) => {

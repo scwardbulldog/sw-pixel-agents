@@ -21,6 +21,8 @@ import { RateLimiter } from './rateLimiter.js';
 export interface ServerConfig {
   /** Unix domain socket path (or Windows named pipe path) the server is listening on */
   socketPath: string;
+  /** TCP port the server is listening on (standalone mode) */
+  port?: number;
   /** PID of the process that owns the server */
   pid: number;
   /** Auth token required in Authorization header for hook requests (defense-in-depth) */

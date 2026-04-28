@@ -96,6 +96,9 @@ export function signalReady(): void {
  * Check if running in standalone mode (served from localhost with WebSocket available).
  */
 export function isStandaloneMode(): boolean {
+  // Explicit flag overrides all other checks (used for npm run dev with proxy)
+  if (import.meta.env.VITE_STANDALONE === 'true') return true;
+
   // Vite dev server should always use browser mock mode, even on localhost.
   if (import.meta.env.DEV) {
     return false;

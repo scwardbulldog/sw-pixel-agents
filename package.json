@@ -77,6 +77,8 @@
     "test:webview": "cd webview-ui && npm test",
     "test:server": "cd server && npm test",
     "test": "npm run test:webview && npm run test:server",
+    "standalone": "cd server && npx tsx src/cli.ts",
+    "dev:webview-standalone": "cd webview-ui && VITE_STANDALONE=true VITE_STANDALONE_PORT=3000 npm run dev",
     "e2e": "playwright test --config e2e/playwright.config.ts",
     "e2e:debug": "playwright test --config e2e/playwright.config.ts --debug",
     "knip": "knip"
