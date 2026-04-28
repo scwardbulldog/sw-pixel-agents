@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
+import { auditLog } from './auditLogger.js';
 import {
   COPILOT_EVENTS_FILE,
   COPILOT_SESSION_DIR,
@@ -124,6 +125,18 @@ export async function launchNewTerminal(
     ? `claude --session-id ${sessionId} --dangerously-skip-permissions`
     : `claude --session-id ${sessionId}`;
   terminal.sendText(claudeCmd);
+
+  // Audit log: bypass permissions is a security-sensitive action (SEC-008)
+  if (bypassPermissions) {
+    auditLog({
+      timestamp: new Date().toISOString(),
+      event: 'agent_bypass_permissions',
+      actor: 'user',
+      resource: 'claude_terminal',
+      outcome: 'success',
+      details: { sessionId: sessionId.slice(0, 8) },
+    });
+  }
 
   const projectDir = getProjectDirPath(cwd);
 
