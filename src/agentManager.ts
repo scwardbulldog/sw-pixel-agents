@@ -4,11 +4,11 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { JSONL_POLL_INTERVAL_MS } from '../server/src/constants.js';
-import { auditLog } from './auditLogger.js';
 import {
   COPILOT_EVENTS_FILE,
   COPILOT_SESSION_DIR,
 } from '../server/src/providers/hook/copilot/constants.js';
+import { auditLog } from './auditLogger.js';
 import {
   TERMINAL_NAME_PREFIX,
   TERMINAL_NAME_PREFIX_COPILOT,
