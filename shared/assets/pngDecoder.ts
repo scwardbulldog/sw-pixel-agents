@@ -5,7 +5,9 @@
  * No VS Code dependency. Only uses pngjs and shared constants.
  */
 
-import { PNG } from 'pngjs';
+import * as fs from 'fs';
+import { createRequire } from 'module';
+import * as path from 'path';
 
 import { rgbaToHex } from './colorUtils.js';
 import {
@@ -20,6 +22,33 @@ import {
   WALL_PIECE_WIDTH,
 } from './constants.js';
 import type { CharacterDirectionSprites } from './types.js';
+
+const PNGJS_REQUIRE_ANCHORS = ['package.json', path.join('webview-ui', 'package.json')] as const;
+
+function loadPngModule(): typeof import('pngjs') {
+  try {
+    return createRequire(__filename)('pngjs') as typeof import('pngjs');
+  } catch (initialError) {
+    let lastError: unknown = initialError;
+
+    for (const anchor of PNGJS_REQUIRE_ANCHORS) {
+      const anchorPath = path.resolve(process.cwd(), anchor);
+      if (!fs.existsSync(anchorPath)) {
+        continue;
+      }
+
+      try {
+        return createRequire(anchorPath)('pngjs') as typeof import('pngjs');
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError;
+  }
+}
+
+const { PNG } = loadPngModule();
 
 // ── Sprite decoding ──────────────────────────────────────────
 
