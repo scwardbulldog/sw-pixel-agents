@@ -179,7 +179,7 @@ export function ToolOverlay({
             const statusInfo = getSubagentStatusInfo(sub);
             activityText = statusInfo.label;
           } else {
-            activityText = sub ? sub.label || 'Subtask' : 'Subtask';
+            activityText = sub ? (sub.label ?? 'Subtask') : 'Subtask';
           }
         } else {
           activityText = getActivityText(id, agentTools, ch.isActive);

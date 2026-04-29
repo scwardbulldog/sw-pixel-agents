@@ -110,6 +110,8 @@ export function useExtensionMessages(
     Record<number, Record<string, ToolActivity[]>>
   >({});
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([]);
+  /** Track linger timeout IDs for sub-agent despawn, keyed by "parentId:toolId" */
+  const lingerTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [layoutReady, setLayoutReady] = useState(false);
   const [layoutWasReset, setLayoutWasReset] = useState(false);
   const [loadedAssets, setLoadedAssets] = useState<
@@ -496,12 +498,15 @@ export function useExtensionMessages(
           os.setAgentTool(subId, null);
         }
         // Linger briefly then despawn
-        setTimeout(() => {
+        const lingerKey = `${id}:${parentToolId}`;
+        const timer = setTimeout(() => {
+          lingerTimersRef.current.delete(lingerKey);
           os.removeSubagent(id, parentToolId);
           setSubagentCharacters((prev) =>
             prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
           );
         }, SUBAGENT_LINGER_MS);
+        lingerTimersRef.current.set(lingerKey, timer);
       } else if (msg.type === 'characterSpritesLoaded') {
         const characters = msg.characters as Array<{
           down: string[][][];
@@ -589,7 +594,15 @@ export function useExtensionMessages(
     }
 
     vscode.postMessage({ type: 'webviewReady' });
-    return () => window.removeEventListener('message', handler);
+    const timers = lingerTimersRef.current;
+    return () => {
+      window.removeEventListener('message', handler);
+      // Clean up any pending linger timers
+      for (const timer of timers.values()) {
+        clearTimeout(timer);
+      }
+      timers.clear();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getOfficeState]);
 
