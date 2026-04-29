@@ -10,6 +10,12 @@ import {
   HUE_SHIFT_RANGE_DEG,
   INACTIVE_SEAT_TIMER_MIN_SEC,
   INACTIVE_SEAT_TIMER_RANGE_SEC,
+  SUBAGENT_BOB_AMPLITUDE,
+  SUBAGENT_BOB_SPEED,
+  SUBAGENT_FLOAT_OFFSET_Y,
+  SUBAGENT_HIT_HALF_WIDTH,
+  SUBAGENT_HIT_HEIGHT,
+  SUBAGENT_HUDDLE_RADIUS,
   WAITING_BUBBLE_DURATION_SEC,
 } from '../../constants.js';
 import { getAnimationFrames, getCatalogEntry, getOnStateType } from '../layout/furnitureCatalog.js';
@@ -446,41 +452,28 @@ export class OfficeState {
     const palette = parentCh ? parentCh.palette : 0;
     const hueShift = parentCh ? parentCh.hueShift : 0;
 
-    // Find the closest walkable tile to the parent, avoiding tiles occupied by other characters
+    // Position at the parent's location — renderer will offset for huddle
+    const parentX = parentCh ? parentCh.x : TILE_SIZE / 2;
+    const parentY = parentCh ? parentCh.y : TILE_SIZE / 2;
     const parentCol = parentCh ? parentCh.tileCol : 0;
     const parentRow = parentCh ? parentCh.tileRow : 0;
-    const dist = (c: number, r: number) => Math.abs(c - parentCol) + Math.abs(r - parentRow);
 
-    // Build set of tiles occupied by existing characters
-    const occupiedTiles = new Set<string>();
-    for (const [, other] of this.characters) {
-      occupiedTiles.add(`${other.tileCol},${other.tileRow}`);
-    }
-
-    let spawn = { col: parentCol, row: parentRow };
-    if (this.walkableTiles.length > 0) {
-      let closest = this.walkableTiles[0];
-      let closestDist = Infinity;
-      for (const tile of this.walkableTiles) {
-        if (occupiedTiles.has(`${tile.col},${tile.row}`)) continue;
-        const d = dist(tile.col, tile.row);
-        if (d < closestDist) {
-          closest = tile;
-          closestDist = d;
-        }
-      }
-      spawn = closest;
+    // Compute huddle index: count existing sub-agents of this parent
+    let huddleIndex = 0;
+    for (const [, meta] of this.subagentMeta) {
+      if (meta.parentAgentId === parentAgentId) huddleIndex++;
     }
 
     const ch = createCharacter(id, palette, null, null, hueShift);
-    ch.x = spawn.col * TILE_SIZE + TILE_SIZE / 2;
-    ch.y = spawn.row * TILE_SIZE + TILE_SIZE / 2;
-    ch.tileCol = spawn.col;
-    ch.tileRow = spawn.row;
+    ch.x = parentX;
+    ch.y = parentY;
+    ch.tileCol = parentCol;
+    ch.tileRow = parentRow;
     // Face the same direction as the parent agent
     if (parentCh) ch.dir = parentCh.dir;
     ch.isSubagent = true;
     ch.parentAgentId = parentAgentId;
+    ch.huddleIndex = huddleIndex;
     ch.matrixEffect = 'spawn';
     ch.matrixEffectTimer = 0;
     ch.matrixEffectSeeds = matrixEffectSeeds();
@@ -740,7 +733,26 @@ export class OfficeState {
             toDelete.push(ch.id);
           }
         }
+        // For sub-agents, still update position to follow parent during matrix effect
+        if (ch.isSubagent) {
+          this.updateSubagentPosition(ch);
+        }
         continue; // skip normal FSM while effect is active
+      }
+
+      // Sub-agents hover around their parent — skip normal FSM
+      if (ch.isSubagent) {
+        ch.frameTimer += dt;
+        this.updateSubagentPosition(ch);
+        // Tick bubble timer for waiting bubbles
+        if (ch.bubbleType === 'waiting') {
+          ch.bubbleTimer -= dt;
+          if (ch.bubbleTimer <= 0) {
+            ch.bubbleType = null;
+            ch.bubbleTimer = 0;
+          }
+        }
+        continue;
       }
 
       // Temporarily unblock own seat so character can pathfind to it
@@ -763,6 +775,40 @@ export class OfficeState {
     }
   }
 
+  /** Update a sub-agent's position to hover around its parent in a huddle pattern */
+  private updateSubagentPosition(ch: Character): void {
+    const parent = ch.parentAgentId !== null ? this.characters.get(ch.parentAgentId) : null;
+    if (!parent) return;
+
+    // Count total sub-agents for this parent to evenly space them
+    let totalSubs = 0;
+    for (const [, meta] of this.subagentMeta) {
+      if (meta.parentAgentId === ch.parentAgentId) totalSubs++;
+    }
+    if (totalSubs === 0) return; // shouldn't happen, but guard against it
+
+    // Distribute sub-agents in a circle around the parent
+    const angleStep = (2 * Math.PI) / totalSubs;
+    const angle = angleStep * ch.huddleIndex - Math.PI / 2; // start from top
+    const radius = SUBAGENT_HUDDLE_RADIUS;
+
+    // Bob animation: each sub-agent bobs at a slightly offset phase
+    const bobPhase = ch.huddleIndex * 0.8;
+    const bobY = Math.sin(ch.frameTimer * SUBAGENT_BOB_SPEED + bobPhase) * SUBAGENT_BOB_AMPLITUDE;
+
+    // Parent sitting offset
+    const parentSittingOff = parent.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+
+    ch.x = parent.x + Math.cos(angle) * radius;
+    ch.y =
+      parent.y +
+      parentSittingOff +
+      SUBAGENT_FLOAT_OFFSET_Y +
+      Math.sin(angle) * (radius * 0.4) +
+      bobY;
+    ch.dir = parent.dir;
+  }
+
   getCharacters(): Character[] {
     return Array.from(this.characters.values());
   }
@@ -773,6 +819,19 @@ export class OfficeState {
     for (const ch of chars) {
       // Skip characters that are despawning
       if (ch.matrixEffect === 'despawn') continue;
+
+      // Sub-agents use smaller hit area
+      if (ch.isSubagent) {
+        const left = ch.x - SUBAGENT_HIT_HALF_WIDTH;
+        const right = ch.x + SUBAGENT_HIT_HALF_WIDTH;
+        const top = ch.y - SUBAGENT_HIT_HEIGHT;
+        const bottom = ch.y;
+        if (worldX >= left && worldX <= right && worldY >= top && worldY <= bottom) {
+          return ch.id;
+        }
+        continue;
+      }
+
       // Character sprite is 16x24, anchored bottom-center
       // Apply sitting offset to match visual position
       const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;

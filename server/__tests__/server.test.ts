@@ -85,6 +85,15 @@ async function postHook(
   });
 }
 
+/** Start the server and return config with socketPath asserted as string. */
+async function startServer(
+  srv: InstanceType<typeof PixelAgentsServer>,
+): Promise<{ socketPath: string; token: string; pid: number; startedAt: number }> {
+  const config = await srv.start();
+  if (!config.socketPath) throw new Error('Expected socketPath from server.start()');
+  return { ...config, socketPath: config.socketPath };
+}
+
 describe('PixelAgentsServer', () => {
   let server: InstanceType<typeof PixelAgentsServer>;
 
@@ -107,7 +116,7 @@ describe('PixelAgentsServer', () => {
 
   // 1. Server starts and returns config
   it('starts and returns config with socketPath, token, pid', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     expect(config.socketPath).toBeTruthy();
     expect(config.token).toBeTruthy();
     expect(config.pid).toBe(process.pid);
@@ -116,7 +125,7 @@ describe('PixelAgentsServer', () => {
 
   // 2. Health endpoint returns 200 + uptime
   it('health endpoint returns 200 with uptime', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const res = await fetchViaSock(config.socketPath, '/api/health');
     expect(res.status).toBe(200);
     const body = (await res.json()) as { status: string; uptime: number; pid: number };
@@ -127,7 +136,7 @@ describe('PixelAgentsServer', () => {
 
   // 3. Hook endpoint requires auth
   it('hook endpoint returns 401 without auth', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const res = await fetchViaSock(config.socketPath, '/api/hooks/claude', {
       method: 'POST',
       body: '{}',
@@ -137,7 +146,7 @@ describe('PixelAgentsServer', () => {
 
   // 4. Hook endpoint accepts valid auth
   it('hook endpoint returns 200 with valid auth', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const res = await postHook(
       config.socketPath,
       config.token,
@@ -148,7 +157,7 @@ describe('PixelAgentsServer', () => {
 
   // 5. Hook callback fires on valid event
   it('hook callback fires on valid event', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const received: Array<{ providerId: string; event: Record<string, unknown> }> = [];
     server.onHookEvent((providerId: string, event: Record<string, unknown>) => {
       received.push({ providerId, event });
@@ -168,7 +177,7 @@ describe('PixelAgentsServer', () => {
 
   // 6. Hook endpoint rejects oversized body
   it('hook endpoint returns 413 for oversized body', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const bigBody = 'x'.repeat(70_000); // > 64KB
     const res = await postHook(config.socketPath, config.token, bigBody);
     expect(res.status).toBe(413);
@@ -176,14 +185,14 @@ describe('PixelAgentsServer', () => {
 
   // 7. Hook endpoint rejects invalid JSON
   it('hook endpoint returns 400 for invalid JSON', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const res = await postHook(config.socketPath, config.token, 'not json {{{');
     expect(res.status).toBe(400);
   });
 
   // 8. Hook endpoint rejects missing provider ID
   it('hook endpoint returns 400 for missing provider ID', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const res = await fetchViaSock(config.socketPath, '/api/hooks/', {
       method: 'POST',
       headers: { Authorization: `Bearer ${config.token}` },
@@ -194,7 +203,7 @@ describe('PixelAgentsServer', () => {
 
   // 9. server.json written
   it('writes server.json with socketPath, pid, token', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const json = JSON.parse(fs.readFileSync(serverJsonPath, 'utf-8'));
     expect(json.socketPath).toBe(config.socketPath);
     expect(json.pid).toBe(process.pid);
@@ -203,7 +212,7 @@ describe('PixelAgentsServer', () => {
 
   // 10. Second instance reuses existing server
   it('second instance reuses existing server', async () => {
-    const config1 = await server.start();
+    const config1 = await startServer(server);
     const server2 = new PixelAgentsServer();
     const config2 = await server2.start();
     expect(config2.socketPath).toBe(config1.socketPath);
@@ -213,7 +222,7 @@ describe('PixelAgentsServer', () => {
 
   // 11. server.json cleaned up on stop
   it('deletes server.json on stop', async () => {
-    await server.start();
+    await startServer(server);
     expect(fs.existsSync(serverJsonPath)).toBe(true);
     server.stop();
     expect(fs.existsSync(serverJsonPath)).toBe(false);
@@ -234,7 +243,7 @@ describe('PixelAgentsServer', () => {
 
   // 13. Unknown route returns 404
   it('unknown route returns 404', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const res = await fetchViaSock(config.socketPath, '/random/path');
     expect(res.status).toBe(404);
   });
@@ -242,7 +251,7 @@ describe('PixelAgentsServer', () => {
   // SEC-003: Security response headers
   describe('SEC-003: Security response headers', () => {
     it('sets security headers on health endpoint', async () => {
-      const config = await server.start();
+      const config = await startServer(server);
       const res = await fetchViaSock(config.socketPath, '/api/health');
       expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
       expect(res.headers.get('X-Frame-Options')).toBe('DENY');
@@ -251,7 +260,7 @@ describe('PixelAgentsServer', () => {
     });
 
     it('sets security headers on hook endpoint', async () => {
-      const config = await server.start();
+      const config = await startServer(server);
       const res = await postHook(
         config.socketPath,
         config.token,
@@ -264,8 +273,12 @@ describe('PixelAgentsServer', () => {
     });
 
     it('sets security headers on 401 unauthorized', async () => {
-      const config = await server.start();
-      const res = await postHook(config.socketPath, 'wrong-token', JSON.stringify({ session_id: 'x', hook_event_name: 'Stop' }));
+      const config = await startServer(server);
+      const res = await postHook(
+        config.socketPath,
+        'wrong-token',
+        JSON.stringify({ session_id: 'x', hook_event_name: 'Stop' }),
+      );
       expect(res.status).toBe(401);
       expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
       expect(res.headers.get('Cache-Control')).toBe('no-store');
@@ -274,7 +287,7 @@ describe('PixelAgentsServer', () => {
 
   // 14. Hook callback does NOT fire for events missing required fields
   it('hook callback does not fire for events without session_id', async () => {
-    const config = await server.start();
+    const config = await startServer(server);
     const received: unknown[] = [];
     server.onHookEvent((_pid: string, event: Record<string, unknown>) => received.push(event));
 
@@ -290,7 +303,7 @@ describe('PixelAgentsServer', () => {
   // SEC-007: Rate limiting tests
   describe('SEC-007: Rate Limiting', () => {
     it('returns rate limit headers on successful hook requests', async () => {
-      const config = await server.start();
+      const config = await startServer(server);
       const res = await postHook(
         config.socketPath,
         config.token,
@@ -302,7 +315,7 @@ describe('PixelAgentsServer', () => {
     });
 
     it('returns 429 when rate limit exceeded', async () => {
-      const config = await server.start();
+      const config = await startServer(server);
 
       // Send 100 requests (at the limit)
       const promises = [];
@@ -329,7 +342,7 @@ describe('PixelAgentsServer', () => {
     });
 
     it('rate limits are per-provider', async () => {
-      const config = await server.start();
+      const config = await startServer(server);
 
       // Use up rate limit for 'claude'
       const claudePromises = [];

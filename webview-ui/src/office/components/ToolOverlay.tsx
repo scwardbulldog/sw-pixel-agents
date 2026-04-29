@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button.js';
 import {
   CHARACTER_SITTING_OFFSET_PX,
+  DELEGATING_LABEL,
   FUEL_COLOR_CRITICAL,
   FUEL_COLOR_DANGER,
   FUEL_COLOR_OK,
@@ -13,6 +14,9 @@ import {
   MAX_CONTEXT_TOKENS,
   PROVIDER_COLOR_COPILOT,
   PROVIDER_LABEL_COPILOT,
+  SUBAGENT_STATUS_COMPLETED_LABEL,
+  SUBAGENT_STATUS_FAILED_LABEL,
+  SUBAGENT_STATUS_RUNNING_LABEL,
   TEAM_LEAD_COLOR,
   TEAM_ROLE_COLOR,
   TOKEN_CRITICAL_THRESHOLD,
@@ -21,6 +25,7 @@ import {
   TOOL_OVERLAY_VERTICAL_OFFSET,
 } from '../../constants.js';
 import type { SubagentCharacter } from '../../hooks/useExtensionMessages.js';
+import { SubagentStatus } from '../../hooks/useExtensionMessages.js';
 import type { OfficeState } from '../engine/officeState.js';
 import type { ToolActivity } from '../types.js';
 import { CharacterState, TILE_SIZE } from '../types.js';
@@ -37,11 +42,17 @@ interface ToolOverlayProps {
   alwaysShowOverlay: boolean;
 }
 
+/** Whether a tool status string represents a Task/Agent (sub-agent spawning) tool */
+function isSubagentToolStatus(status: string): boolean {
+  return status.startsWith('Subtask:') || status === 'Running subtask';
+}
+
 /** Derive a short human-readable activity string from tools/status */
 function getActivityText(
   agentId: number,
   agentTools: Record<number, ToolActivity[]>,
   isActive: boolean,
+  hasRunningSubagents: boolean,
 ): string {
   const tools = agentTools[agentId];
   if (tools && tools.length > 0) {
@@ -49,14 +60,22 @@ function getActivityText(
     const activeTool = [...tools].reverse().find((t) => !t.done);
     if (activeTool) {
       if (activeTool.permissionWait) return 'Needs approval';
+      // Don't show sub-agent task descriptions on the main agent — show "Delegating"
+      if (isSubagentToolStatus(activeTool.status)) return DELEGATING_LABEL;
       return activeTool.status;
     }
     // All tools done but agent still active (mid-turn) — keep showing last tool status
     if (isActive) {
       const lastTool = tools[tools.length - 1];
-      if (lastTool) return lastTool.status;
+      if (lastTool) {
+        if (isSubagentToolStatus(lastTool.status)) return DELEGATING_LABEL;
+        return lastTool.status;
+      }
     }
   }
+
+  // Show "Delegating" instead of "Idle" when sub-agents are still running
+  if (hasRunningSubagents) return DELEGATING_LABEL;
 
   return 'Idle';
 }
@@ -80,6 +99,29 @@ function getProviderInfo(providerId: 'claude' | 'copilot' | undefined): {
     return { label: PROVIDER_LABEL_COPILOT, color: PROVIDER_COLOR_COPILOT };
   }
   return null;
+}
+
+/** Get status label and dot color for a sub-agent based on its lifecycle status */
+function getSubagentStatusInfo(sub: SubagentCharacter): { label: string; dotColor: string } {
+  switch (sub.status) {
+    case SubagentStatus.COMPLETED:
+      return { label: SUBAGENT_STATUS_COMPLETED_LABEL, dotColor: 'var(--color-status-success)' };
+    case SubagentStatus.FAILED:
+      return { label: SUBAGENT_STATUS_FAILED_LABEL, dotColor: 'var(--color-status-error)' };
+    default:
+      return { label: SUBAGENT_STATUS_RUNNING_LABEL, dotColor: 'var(--color-status-active)' };
+  }
+}
+
+/** Format elapsed time as a human-readable duration string */
+function formatDuration(startedAt: number, completedAt: number | null): string {
+  const endTime = completedAt ?? Date.now();
+  const elapsed = Math.max(0, endTime - startedAt);
+  const seconds = Math.floor(elapsed / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
 }
 
 export function ToolOverlay({
@@ -135,24 +177,33 @@ export function ToolOverlay({
         // Only show for hovered or selected agents (unless always-show is on)
         if (!alwaysShowOverlay && !isSelected && !isHovered) return null;
 
-        // Position above character
-        const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+        // Position above character — sub-agents don't use sitting offset (they hover)
+        const sittingOffset =
+          !isSub && ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+        const overlayOffset = isSub
+          ? TOOL_OVERLAY_VERTICAL_OFFSET * 0.5
+          : TOOL_OVERLAY_VERTICAL_OFFSET;
         const screenX = (deviceOffsetX + ch.x * zoom) / dpr;
-        const screenY =
-          (deviceOffsetY + (ch.y + sittingOffset - TOOL_OVERLAY_VERTICAL_OFFSET) * zoom) / dpr;
+        const screenY = (deviceOffsetY + (ch.y + sittingOffset - overlayOffset) * zoom) / dpr;
 
         // Get activity text
         const subHasPermission = isSub && ch.bubbleType === 'permission';
+        const sub = isSub ? subagentCharacters.find((s) => s.id === id) : null;
         let activityText: string;
         if (isSub) {
           if (subHasPermission) {
             activityText = 'Needs approval';
+          } else if (sub && sub.status !== SubagentStatus.RUNNING) {
+            const statusInfo = getSubagentStatusInfo(sub);
+            activityText = statusInfo.label;
           } else {
-            const sub = subagentCharacters.find((s) => s.id === id);
-            activityText = sub ? sub.label : 'Subtask';
+            activityText = sub ? (sub.label ?? 'Subtask') : 'Subtask';
           }
         } else {
-          activityText = getActivityText(id, agentTools, ch.isActive);
+          const hasRunningSubagents = subagentCharacters.some(
+            (s) => s.parentAgentId === id && s.status === SubagentStatus.RUNNING,
+          );
+          activityText = getActivityText(id, agentTools, ch.isActive, hasRunningSubagents);
         }
 
         // Determine dot color
@@ -162,11 +213,22 @@ export function ToolOverlay({
         const isActive = ch.isActive;
 
         let dotColor: string | null = null;
-        if (hasPermission) {
+        if (isSub && sub) {
+          const statusInfo = getSubagentStatusInfo(sub);
+          if (hasPermission) {
+            dotColor = 'var(--color-status-permission)';
+          } else {
+            dotColor = statusInfo.dotColor;
+          }
+        } else if (hasPermission) {
           dotColor = 'var(--color-status-permission)';
-        } else if (isActive && hasActiveTools) {
+        } else if (isActive && (hasActiveTools || activityText === DELEGATING_LABEL)) {
           dotColor = 'var(--color-status-active)';
         }
+
+        // Sub-agent metadata
+        const subDuration = sub ? formatDuration(sub.startedAt, sub.completedAt) : null;
+        const subParentLabel = sub ? `Agent #${sub.parentAgentId}` : null;
 
         // Team info
         const isTeamAgent = !!ch.teamName;
@@ -174,7 +236,7 @@ export function ToolOverlay({
         const totalTokens = ch.inputTokens + ch.outputTokens;
         const tokenRatio = totalTokens / MAX_CONTEXT_TOKENS;
         const providerInfo = !isSub ? getProviderInfo(ch.providerId) : null;
-        const hasExtraLines = !!(ch.folderName || teamRoleLabel || providerInfo);
+        const hasExtraLines = !!(ch.folderName || teamRoleLabel || providerInfo || (isSub && sub));
 
         return (
           <div
@@ -220,6 +282,17 @@ export function ToolOverlay({
                     {teamRoleLabel}
                   </span>
                 )}
+                {isSub && sub && (
+                  <span
+                    className="overflow-hidden text-ellipsis block leading-none"
+                    style={{
+                      fontSize: '16px',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    {subParentLabel} · {subDuration}
+                  </span>
+                )}
                 <span
                   className="overflow-hidden text-ellipsis block leading-none"
                   style={{
@@ -229,6 +302,11 @@ export function ToolOverlay({
                 >
                   {activityText}
                 </span>
+                {isSub && sub && sub.label && sub.status === SubagentStatus.RUNNING && (
+                  <span className="text-2xs leading-none overflow-hidden text-ellipsis block">
+                    {sub.label}
+                  </span>
+                )}
                 {ch.folderName && (
                   <span className="text-2xs leading-none overflow-hidden text-ellipsis block">
                     {ch.folderName}

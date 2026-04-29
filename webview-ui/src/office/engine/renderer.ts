@@ -30,6 +30,7 @@ import {
   SELECTED_OUTLINE_ALPHA,
   SELECTION_DASH_PATTERN,
   SELECTION_HIGHLIGHT_COLOR,
+  SUBAGENT_SCALE,
   VOID_TILE_DASH_PATTERN,
   VOID_TILE_OUTLINE_COLOR,
 } from '../../constants.js';
@@ -149,9 +150,13 @@ export function renderScene(
   for (const ch of characters) {
     const sprites = getCharacterSprites(ch.palette, ch.hueShift);
     const spriteData = getCharacterSprite(ch, sprites);
-    const cached = getCachedSprite(spriteData, zoom);
-    // Sitting offset: shift character down when seated so they visually sit in the chair
-    const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
+    const isSub = ch.isSubagent;
+    // Sub-agents render at half scale for the "mini-me" effect
+    const effectiveZoom = isSub ? Math.max(1, Math.round(zoom * SUBAGENT_SCALE)) : zoom;
+    const cached = getCachedSprite(spriteData, effectiveZoom);
+    // Sub-agents don't use sitting offset (they hover, never sit)
+    const sittingOffset =
+      !isSub && ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
     // Anchor at bottom-center of character — round to integer device pixels
     const drawX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
     const drawY = Math.round(offsetY + (ch.y + sittingOffset) * zoom - cached.height);
@@ -159,7 +164,8 @@ export function renderScene(
     // Sort characters by bottom of their tile (not center) so they render
     // in front of same-row furniture (e.g. chairs) but behind furniture
     // at lower rows (e.g. desks, bookshelves that occlude from below).
-    const charZY = ch.y + TILE_SIZE / 2 + CHARACTER_Z_SORT_OFFSET;
+    // Sub-agents sort slightly in front of their parent (they float above).
+    const charZY = ch.y + TILE_SIZE / 2 + CHARACTER_Z_SORT_OFFSET + (isSub ? 0.1 : 0);
 
     // Matrix spawn/despawn effect — skip outline, use per-pixel rendering
     if (ch.matrixEffect) {
@@ -167,10 +173,11 @@ export function renderScene(
       const mDrawY = drawY;
       const mSpriteData = spriteData;
       const mCh = ch;
+      const mEffectiveZoom = effectiveZoom;
       drawables.push({
         zY: charZY,
         draw: (c) => {
-          renderMatrixEffect(c, mCh, mSpriteData, mDrawX, mDrawY, zoom);
+          renderMatrixEffect(c, mCh, mSpriteData, mDrawX, mDrawY, mEffectiveZoom);
         },
       });
       continue;
@@ -182,9 +189,9 @@ export function renderScene(
     if (isSelected || isHovered) {
       const outlineAlpha = isSelected ? SELECTED_OUTLINE_ALPHA : HOVERED_OUTLINE_ALPHA;
       const outlineData = getOutlineSprite(spriteData);
-      const outlineCached = getCachedSprite(outlineData, zoom);
-      const olDrawX = drawX - zoom; // 1 sprite-pixel offset, scaled
-      const olDrawY = drawY - zoom; // outline follows sitting offset via drawY
+      const outlineCached = getCachedSprite(outlineData, effectiveZoom);
+      const olDrawX = drawX - effectiveZoom; // 1 sprite-pixel offset, scaled
+      const olDrawY = drawY - effectiveZoom; // outline follows sitting offset via drawY
       drawables.push({
         zY: charZY - OUTLINE_Z_SORT_OFFSET, // sort just before character
         draw: (c) => {
@@ -505,14 +512,20 @@ function renderBubbles(
       alpha = ch.bubbleTimer / BUBBLE_FADE_DURATION_SEC;
     }
 
-    const cached = getCachedSprite(sprite, zoom);
+    // Sub-agents use scaled bubbles
+    const effectiveZoom = ch.isSubagent ? Math.max(1, Math.round(zoom * SUBAGENT_SCALE)) : zoom;
+    const cached = getCachedSprite(sprite, effectiveZoom);
     // Position: centered above the character's head
-    // Character is anchored bottom-center at (ch.x, ch.y), sprite is 16x24
-    // Place bubble above head with a small gap; follow sitting offset
-    const sittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+    // Sub-agents don't use sitting offset; they hover
+    const sittingOff =
+      !ch.isSubagent && ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
+    // For sub-agents, use reduced vertical offset since they're smaller
+    const verticalOff = ch.isSubagent
+      ? BUBBLE_VERTICAL_OFFSET_PX * SUBAGENT_SCALE
+      : BUBBLE_VERTICAL_OFFSET_PX;
     const bubbleX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
     const bubbleY = Math.round(
-      offsetY + (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom - cached.height - 1 * zoom,
+      offsetY + (ch.y + sittingOff - verticalOff) * zoom - cached.height - 1 * zoom,
     );
 
     ctx.save();
