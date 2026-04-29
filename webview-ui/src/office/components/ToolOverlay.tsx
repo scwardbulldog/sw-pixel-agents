@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button.js';
 import {
   CHARACTER_SITTING_OFFSET_PX,
+  DELEGATING_LABEL,
   FUEL_COLOR_CRITICAL,
   FUEL_COLOR_DANGER,
   FUEL_COLOR_OK,
@@ -41,11 +42,17 @@ interface ToolOverlayProps {
   alwaysShowOverlay: boolean;
 }
 
+/** Whether a tool status string represents a Task/Agent (sub-agent spawning) tool */
+function isSubagentToolStatus(status: string): boolean {
+  return status.startsWith('Subtask:') || status === 'Running subtask';
+}
+
 /** Derive a short human-readable activity string from tools/status */
 function getActivityText(
   agentId: number,
   agentTools: Record<number, ToolActivity[]>,
   isActive: boolean,
+  hasRunningSubagents: boolean,
 ): string {
   const tools = agentTools[agentId];
   if (tools && tools.length > 0) {
@@ -53,14 +60,22 @@ function getActivityText(
     const activeTool = [...tools].reverse().find((t) => !t.done);
     if (activeTool) {
       if (activeTool.permissionWait) return 'Needs approval';
+      // Don't show sub-agent task descriptions on the main agent — show "Delegating"
+      if (isSubagentToolStatus(activeTool.status)) return DELEGATING_LABEL;
       return activeTool.status;
     }
     // All tools done but agent still active (mid-turn) — keep showing last tool status
     if (isActive) {
       const lastTool = tools[tools.length - 1];
-      if (lastTool) return lastTool.status;
+      if (lastTool) {
+        if (isSubagentToolStatus(lastTool.status)) return DELEGATING_LABEL;
+        return lastTool.status;
+      }
     }
   }
+
+  // Show "Delegating" instead of "Idle" when sub-agents are still running
+  if (hasRunningSubagents) return DELEGATING_LABEL;
 
   return 'Idle';
 }
@@ -185,7 +200,10 @@ export function ToolOverlay({
             activityText = sub ? (sub.label ?? 'Subtask') : 'Subtask';
           }
         } else {
-          activityText = getActivityText(id, agentTools, ch.isActive);
+          const hasRunningSubagents = subagentCharacters.some(
+            (s) => s.parentAgentId === id && s.status === SubagentStatus.RUNNING,
+          );
+          activityText = getActivityText(id, agentTools, ch.isActive, hasRunningSubagents);
         }
 
         // Determine dot color
@@ -204,7 +222,7 @@ export function ToolOverlay({
           }
         } else if (hasPermission) {
           dotColor = 'var(--color-status-permission)';
-        } else if (isActive && hasActiveTools) {
+        } else if (isActive && (hasActiveTools || activityText === DELEGATING_LABEL)) {
           dotColor = 'var(--color-status-active)';
         }
 

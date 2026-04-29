@@ -238,6 +238,13 @@ export function useExtensionMessages(
         // Remove all sub-agent characters belonging to this agent
         os.removeAllSubagents(id);
         setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+        // Cancel any pending linger timers for this agent's sub-agents
+        for (const [timerKey, timer] of lingerTimersRef.current) {
+          if (timerKey.startsWith(`${id}:`)) {
+            clearTimeout(timer);
+            lingerTimersRef.current.delete(timerKey);
+          }
+        }
         os.removeAgent(id);
       } else if (msg.type === 'existingAgents') {
         const incoming = msg.agents as number[];
@@ -354,17 +361,51 @@ export function useExtensionMessages(
           delete next[id];
           return next;
         });
-        // Remove all sub-agent characters belonging to this agent.
+        // Remove only completed/failed sub-agent characters (not still-running ones).
+        // Running sub-agents survive turn-end clears — they'll be removed by explicit
+        // subagentClear when the Task tool_result arrives.
         // Exception: team leads with inline teammates -- their sub-agents represent
         // real teammates and should only be removed by SubagentStop/subagentClear.
         const clearCh = os.characters.get(id);
         const hasInlineTeammates =
           clearCh?.teamName && clearCh?.isTeamLead && !clearCh?.teamUsesTmux;
         if (!hasInlineTeammates) {
-          os.removeAllSubagents(id);
-          setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+          setSubagentCharacters((prev) => {
+            // Find which sub-agents are still running (keep those)
+            const running = new Set(
+              prev
+                .filter((s) => s.parentAgentId === id && s.status === SubagentStatus.RUNNING)
+                .map((s) => s.parentToolId),
+            );
+            // Remove non-running sub-agents from officeState
+            // Collect first to avoid mutating map during iteration
+            const toRemove: string[] = [];
+            for (const [, subId] of os.subagentIdMap) {
+              const meta = os.subagentMeta.get(subId);
+              if (meta && meta.parentAgentId === id && !running.has(meta.parentToolId)) {
+                toRemove.push(meta.parentToolId);
+              }
+            }
+            for (const parentToolId of toRemove) {
+              os.removeSubagent(id, parentToolId);
+            }
+            // Cancel linger timers for removed (non-running) sub-agents
+            for (const [timerKey, timer] of lingerTimersRef.current) {
+              if (timerKey.startsWith(`${id}:`) && !running.has(timerKey.slice(`${id}:`.length))) {
+                clearTimeout(timer);
+                lingerTimersRef.current.delete(timerKey);
+              }
+            }
+            return prev.filter(
+              (s) => s.parentAgentId !== id || s.status === SubagentStatus.RUNNING,
+            );
+          });
         }
-        os.setAgentTool(id, null);
+        // Don't clear the parent's tool state if it still has running sub-agents
+        const hasRunningSubs = [...os.subagentMeta.values()].some((m) => m.parentAgentId === id);
+        if (!hasRunningSubs) {
+          os.setAgentTool(id, null);
+        }
         os.clearPermissionBubble(id);
       } else if (msg.type === 'agentSelected') {
         const id = msg.id as number;
@@ -372,6 +413,14 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentStatus') {
         const id = msg.id as number;
         const status = msg.status as string;
+        // If status is 'waiting' but agent has running sub-agents, keep it active
+        // (the agent is delegating to sub-agents, not truly idle)
+        const hasRunningSubs = [...os.subagentMeta.values()].some((m) => m.parentAgentId === id);
+        if (status === 'waiting' && hasRunningSubs) {
+          // Suppress idle/waiting — parent is delegating
+          os.setAgentActive(id, true);
+          return;
+        }
         setAgentStatuses((prev) => {
           if (status === 'active') {
             if (!(id in prev)) return prev;

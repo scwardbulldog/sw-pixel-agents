@@ -155,6 +155,8 @@ export const SUBAGENT_LINGER_MS = 3000;
 export const SUBAGENT_STATUS_COMPLETED_LABEL = 'Completed';
 export const SUBAGENT_STATUS_FAILED_LABEL = 'Failed';
 export const SUBAGENT_STATUS_RUNNING_LABEL = 'Running';
+/** Label shown on the main agent when it has active sub-agents */
+export const DELEGATING_LABEL = 'Delegating';
 /** Render scale for sub-agent "mini-me" sprites (0.5 = half size) */
 export const SUBAGENT_SCALE = 0.5;
 /** Pixel radius of the huddle circle around the parent agent */
