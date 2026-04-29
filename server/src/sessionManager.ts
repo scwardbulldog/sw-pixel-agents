@@ -15,6 +15,8 @@ import {
   decodeAllWalls,
 } from '../../shared/assets/loader.js';
 import type { CatalogEntry } from '../../shared/assets/types.js';
+import { readConfig, writeConfig } from '../../src/configPersistence.js';
+import { readLayoutFromFile, writeLayoutToFile } from '../../src/layoutPersistence.js';
 import { TOOL_DONE_DELAY_MS } from './constants.js';
 import { logger } from './logger.js';
 import {
@@ -106,6 +108,111 @@ export class SessionManager {
     this.agents.clear();
     this.sessionIdToAgentId.clear();
     logger.info('SessionManager: stopped');
+  }
+
+  /** Handle an incoming hook event from a CLI provider */
+  handleHookEvent(_providerId: string, event: Record<string, unknown>): void {
+    const sessionId = event.session_id as string;
+    if (!sessionId) return;
+
+    const agentId = this.sessionIdToAgentId.get(sessionId);
+    if (agentId === undefined) return;
+
+    const agent = this.agents.get(agentId);
+    if (!agent) return;
+
+    agent.lastDataAt = Date.now();
+
+    const hookEventName = event.hook_event_name as string;
+    switch (hookEventName) {
+      case 'Stop':
+      case 'SessionEnd':
+        this.clearAllTools(agent);
+        agent.isWaiting = true;
+        agent.hadToolsInTurn = false;
+        this.broadcaster.broadcast({ type: 'agentStatus', id: agentId, status: 'waiting' });
+        break;
+      case 'PermissionRequest':
+      case 'Notification':
+        agent.permissionSent = true;
+        this.broadcaster.broadcast({ type: 'agentToolPermission', id: agentId });
+        break;
+      case 'PreToolUse': {
+        const toolName = (event.tool_name as string) ?? '';
+        const status = claudeProvider.formatToolStatus(
+          toolName,
+          (event.tool_input as Record<string, unknown>) ?? {},
+        );
+        const toolId = `hook-${Date.now()}`;
+        agent.isWaiting = false;
+        agent.hadToolsInTurn = true;
+        agent.activeToolIds.add(toolId);
+        agent.activeToolStatuses.set(toolId, status);
+        agent.activeToolNames.set(toolId, toolName);
+        this.broadcaster.broadcast({
+          type: 'agentStatus',
+          id: agentId,
+          status: 'active',
+        });
+        this.broadcaster.broadcast({
+          type: 'agentToolStart',
+          id: agentId,
+          toolId,
+          status,
+          toolName,
+          permissionActive: agent.permissionSent,
+        });
+        break;
+      }
+      case 'PostToolUse':
+      case 'PostToolUseFailure': {
+        // Mark the most recent tool as done
+        const lastToolId = Array.from(agent.activeToolIds).pop();
+        if (lastToolId) {
+          this.scheduleToolDone(agentId, lastToolId);
+        }
+        break;
+      }
+      case 'UserPromptSubmit': {
+        agent.isWaiting = false;
+        agent.hadToolsInTurn = false;
+        if (agent.permissionSent) {
+          agent.permissionSent = false;
+          this.broadcaster.broadcast({
+            type: 'agentToolPermissionClear',
+            id: agentId,
+          });
+        }
+        this.broadcaster.broadcast({
+          type: 'agentStatus',
+          id: agentId,
+          status: 'active',
+        });
+        break;
+      }
+    }
+  }
+
+  /** Handle a saveLayout message from the browser */
+  handleSaveLayout(layout: Record<string, unknown>): void {
+    try {
+      writeLayoutToFile(layout);
+      // Invalidate cached assets so next client gets the updated layout
+      this.assetMessages = null;
+    } catch (e) {
+      logger.error(`Failed to save layout: ${e}`);
+    }
+  }
+
+  /** Handle a setEnabledProviders message from the browser */
+  handleSetEnabledProviders(providers: ('claude' | 'copilot')[]): void {
+    try {
+      const cfg = readConfig();
+      cfg.enabledProviders = providers;
+      writeConfig(cfg);
+    } catch (e) {
+      logger.error(`Failed to save enabled providers: ${e}`);
+    }
   }
 
   /** Find the highest-versioned default layout file */
@@ -544,14 +651,20 @@ export class SessionManager {
       }
     }
 
-    // Settings (minimal for standalone)
+    // Settings (from config file)
+    const config = readConfig();
     messages.push({
       type: 'settingsLoaded',
       soundEnabled: true,
       extensionVersion: '1.0.0-standalone',
       lastSeenVersion: '1.0.0',
-      enabledProviders: ['claude', 'copilot'],
-      defaultProvider: 'claude',
+      enabledProviders: config.enabledProviders ?? ['claude', 'copilot'],
+      defaultProvider: config.defaultProvider ?? 'claude',
+      hooksEnabled: true,
+      hooksInfoShown: true,
+      watchAllSessions: true,
+      alwaysShowLabels: false,
+      externalAssetDirectories: config.externalAssetDirectories ?? [],
     });
 
     // Existing agents BEFORE layout - format must match extension's sendExistingAgents
@@ -629,12 +742,18 @@ export class SessionManager {
         logger.debug(`Loaded ${catalog.length} furniture items`);
       }
 
-      // Load default layout (find highest versioned file)
-      const layoutPath = this.findDefaultLayout();
-      if (layoutPath) {
-        const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf-8')) as unknown;
-        messages.push({ type: 'layoutLoaded', layout });
-        logger.debug('Loaded default layout');
+      // Load layout — prefer user's saved layout, fall back to default
+      const userLayout = readLayoutFromFile();
+      if (userLayout) {
+        messages.push({ type: 'layoutLoaded', layout: userLayout });
+        logger.debug('Loaded user layout from ~/.pixel-agents/layout.json');
+      } else {
+        const layoutPath = this.findDefaultLayout();
+        if (layoutPath) {
+          const layout = JSON.parse(fs.readFileSync(layoutPath, 'utf-8')) as unknown;
+          messages.push({ type: 'layoutLoaded', layout });
+          logger.debug('Loaded default layout');
+        }
       }
 
       logger.info('Assets loaded successfully');

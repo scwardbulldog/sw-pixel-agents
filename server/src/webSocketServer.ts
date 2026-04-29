@@ -24,6 +24,7 @@ export class WebSocketBroadcaster {
   private clients: Set<WebSocket> = new Set();
   private messageQueue: WebviewMessage[] = [];
   private queueFlushPending = false;
+  private messageCallback: ((msg: WebviewMessage) => void) | null = null;
 
   /**
    * Attach WebSocket upgrade handler to an existing HTTP server.
@@ -49,10 +50,16 @@ export class WebSocketBroadcaster {
       logger.info(`WebSocket: client connected (${this.clients.size} total)`);
 
       ws.on('message', (data) => {
-        // Handle incoming messages from browser (future: save layout, etc.)
+        // Handle incoming messages from browser.
+        // Standalone client wraps messages in an array; VS Code sends single objects.
         try {
-          const msg = JSON.parse(data.toString()) as { type: string };
-          this.handleClientMessage(ws, msg);
+          const parsed: unknown = JSON.parse(data.toString());
+          const messages = Array.isArray(parsed) ? parsed : [parsed];
+          for (const msg of messages) {
+            if (msg && typeof msg === 'object' && 'type' in msg) {
+              this.handleClientMessage(ws, msg as { type: string });
+            }
+          }
         } catch {
           logger.warn('WebSocket: invalid message from client');
         }
@@ -74,11 +81,10 @@ export class WebSocketBroadcaster {
 
   /**
    * Handle incoming message from a browser client.
-   * Currently logs; future: handle save requests, etc.
    */
   private handleClientMessage(_ws: WebSocket, msg: { type: string }): void {
     logger.debug(`WebSocket: received message type=${msg.type}`);
-    // Future: handle 'saveLayout', 'focusAgent', etc.
+    this.messageCallback?.(msg as WebviewMessage);
   }
 
   /**
@@ -152,6 +158,13 @@ export class WebSocketBroadcaster {
    */
   onConnection(callback: (ws: WebSocket) => void): void {
     this.wss?.on('connection', callback);
+  }
+
+  /**
+   * Register a callback for incoming messages from browser clients.
+   */
+  onMessage(callback: (msg: WebviewMessage) => void): void {
+    this.messageCallback = callback;
   }
 
   /**

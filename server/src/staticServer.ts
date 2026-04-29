@@ -174,3 +174,33 @@ export function findWebviewDist(): string | null {
   logger.warn('Static: webview dist not found');
   return null;
 }
+
+/**
+ * Find the assets directory (sprites, catalog, layout).
+ * Can find source assets even without a full webview build, for dev mode.
+ */
+export function findAssetsDir(): string | null {
+  const candidates = [
+    // Production (bundled alongside webview dist)
+    path.join(__dirname, '../webview/assets'),
+    // Production (repo root)
+    path.join(process.cwd(), 'dist/webview/assets'),
+    // Vite output before copy
+    path.join(process.cwd(), 'webview-ui/dist/assets'),
+    // Dev — source assets, no build needed
+    path.join(process.cwd(), 'webview-ui/public/assets'),
+    // When running from server directory
+    path.join(__dirname, '../../webview-ui/public/assets'),
+  ];
+
+  for (const candidate of candidates) {
+    const catalogPath = path.join(candidate, 'furniture-catalog.json');
+    if (fs.existsSync(catalogPath)) {
+      logger.debug(`Static: found assets at ${candidate}`);
+      return candidate;
+    }
+  }
+
+  logger.warn('Static: assets directory not found');
+  return null;
+}

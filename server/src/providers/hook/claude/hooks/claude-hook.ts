@@ -27,21 +27,32 @@ async function main(): Promise<void> {
   }
 
   const body = JSON.stringify(data);
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body),
+    Authorization: `Bearer ${server.token}`,
+  };
+
+  const requestOptions =
+    'socketPath' in server && server.socketPath
+      ? {
+          socketPath: server.socketPath,
+          path: `${HOOK_API_PREFIX}/claude`,
+          method: 'POST' as const,
+          headers,
+          timeout: 2000,
+        }
+      : {
+          hostname: '127.0.0.1',
+          port: server.port,
+          path: `${HOOK_API_PREFIX}/claude`,
+          method: 'POST' as const,
+          headers,
+          timeout: 2000,
+        };
+
   return new Promise((resolve) => {
-    const req = http.request(
-      {
-        socketPath: server.socketPath,
-        path: `${HOOK_API_PREFIX}/claude`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-          Authorization: `Bearer ${server.token}`,
-        },
-        timeout: 2000,
-      },
-      () => resolve(),
-    );
+    const req = http.request(requestOptions, () => resolve());
     req.on('error', () => resolve());
     req.on('timeout', () => {
       req.destroy();

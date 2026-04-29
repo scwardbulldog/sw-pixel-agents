@@ -99,11 +99,31 @@ function browserMockAssetsPlugin(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [tailwindcss(), react(), browserMockAssetsPlugin()],
-  build: {
-    outDir: '../dist/webview',
-    emptyOutDir: true,
-  },
-  base: './',
+export default defineConfig(() => {
+  const standalonePort = process.env.VITE_STANDALONE_PORT ?? '3000';
+  const isStandalone = process.env.VITE_STANDALONE === 'true';
+
+  return {
+    plugins: [tailwindcss(), react(), browserMockAssetsPlugin()],
+    build: {
+      outDir: '../dist/webview',
+      emptyOutDir: true,
+    },
+    base: './',
+    ...(isStandalone && {
+      server: {
+        proxy: {
+          '/ws': {
+            target: `ws://localhost:${standalonePort}`,
+            ws: true,
+            changeOrigin: true,
+          },
+          '/api': {
+            target: `http://localhost:${standalonePort}`,
+            changeOrigin: true,
+          },
+        },
+      },
+    }),
+  };
 });
