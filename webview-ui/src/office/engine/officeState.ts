@@ -785,9 +785,10 @@ export class OfficeState {
     for (const [, meta] of this.subagentMeta) {
       if (meta.parentAgentId === ch.parentAgentId) totalSubs++;
     }
+    if (totalSubs === 0) return; // shouldn't happen, but guard against it
 
     // Distribute sub-agents in a circle around the parent
-    const angleStep = totalSubs > 0 ? (2 * Math.PI) / totalSubs : 0;
+    const angleStep = (2 * Math.PI) / totalSubs;
     const angle = angleStep * ch.huddleIndex - Math.PI / 2; // start from top
     const radius = SUBAGENT_HUDDLE_RADIUS;
 
