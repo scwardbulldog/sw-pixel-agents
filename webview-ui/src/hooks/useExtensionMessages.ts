@@ -146,6 +146,10 @@ export function useExtensionMessages(
       const msg = e.data;
       const os = getOfficeState();
 
+      /** Check if a parent agent has any running sub-agents */
+      const hasRunningSubagents = (parentId: number): boolean =>
+        [...os.subagentMeta.values()].some((m) => m.parentAgentId === parentId);
+
       if (msg.type === 'layoutLoaded') {
         // Skip external layout updates while editor has unsaved changes
         if (layoutReadyRef.current && isEditDirty?.()) {
@@ -402,8 +406,7 @@ export function useExtensionMessages(
           });
         }
         // Don't clear the parent's tool state if it still has running sub-agents
-        const hasRunningSubs = [...os.subagentMeta.values()].some((m) => m.parentAgentId === id);
-        if (!hasRunningSubs) {
+        if (!hasRunningSubagents(id)) {
           os.setAgentTool(id, null);
         }
         os.clearPermissionBubble(id);
@@ -415,8 +418,7 @@ export function useExtensionMessages(
         const status = msg.status as string;
         // If status is 'waiting' but agent has running sub-agents, keep it active
         // (the agent is delegating to sub-agents, not truly idle)
-        const hasRunningSubs = [...os.subagentMeta.values()].some((m) => m.parentAgentId === id);
-        if (status === 'waiting' && hasRunningSubs) {
+        if (status === 'waiting' && hasRunningSubagents(id)) {
           // Suppress idle/waiting — parent is delegating
           os.setAgentActive(id, true);
           return;
