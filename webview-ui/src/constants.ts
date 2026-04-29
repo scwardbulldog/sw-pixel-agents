@@ -149,6 +149,13 @@ export const FUEL_GAUGE_BG = '#222';
 export const TEAM_LEAD_COLOR = '#ffd700';
 export const TEAM_ROLE_COLOR = '#66aaff';
 
+// ── Sub-agent Status ────────────────────────────────────────
+/** How long (ms) a completed/failed sub-agent lingers before despawning */
+export const SUBAGENT_LINGER_MS = 3000;
+export const SUBAGENT_STATUS_COMPLETED_LABEL = 'Completed';
+export const SUBAGENT_STATUS_FAILED_LABEL = 'Failed';
+export const SUBAGENT_STATUS_RUNNING_LABEL = 'Running';
+
 // ── Provider Indicators ──────────────────────────────────────
 export const PROVIDER_LABEL_CLAUDE = 'Claude';
 export const PROVIDER_LABEL_COPILOT = 'Copilot';

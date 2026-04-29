@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { SUBAGENT_LINGER_MS } from '../constants.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
@@ -14,11 +15,24 @@ import { vscode } from '../vscodeApi.js';
 
 export type ProviderId = 'claude' | 'copilot';
 
+export const SubagentStatus = {
+  RUNNING: 'running',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+} as const;
+export type SubagentStatus = (typeof SubagentStatus)[keyof typeof SubagentStatus];
+
 export interface SubagentCharacter {
   id: number;
   parentAgentId: number;
   parentToolId: string;
   label: string;
+  /** Current lifecycle status of the sub-agent */
+  status: SubagentStatus;
+  /** Timestamp (ms) when this sub-agent was created */
+  startedAt: number;
+  /** Timestamp (ms) when this sub-agent completed or failed (null if still running) */
+  completedAt: number | null;
 }
 
 interface FurnitureAsset {
@@ -299,7 +313,18 @@ export function useExtensionMessages(
           const subId = os.addSubagent(id, toolId);
           setSubagentCharacters((prev) => {
             if (prev.some((s) => s.id === subId)) return prev;
-            return [...prev, { id: subId, parentAgentId: id, parentToolId: toolId, label }];
+            return [
+              ...prev,
+              {
+                id: subId,
+                parentAgentId: id,
+                parentToolId: toolId,
+                label,
+                status: SubagentStatus.RUNNING,
+                startedAt: Date.now(),
+                completedAt: null,
+              },
+            ];
           });
         }
       } else if (msg.type === 'agentToolDone') {
@@ -442,6 +467,7 @@ export function useExtensionMessages(
       } else if (msg.type === 'subagentClear') {
         const id = msg.id as number;
         const parentToolId = msg.parentToolId as string;
+        const isError = (msg.isError as boolean | undefined) ?? false;
         setSubagentTools((prev) => {
           const agentSubs = prev[id];
           if (!agentSubs || !(parentToolId in agentSubs)) return prev;
@@ -454,11 +480,28 @@ export function useExtensionMessages(
           }
           return { ...prev, [id]: next };
         });
-        // Remove sub-agent character
-        os.removeSubagent(id, parentToolId);
+        // Mark sub-agent as completed/failed, then remove after linger period
+        const finalStatus = isError ? SubagentStatus.FAILED : SubagentStatus.COMPLETED;
         setSubagentCharacters((prev) =>
-          prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
+          prev.map((s) =>
+            s.parentAgentId === id && s.parentToolId === parentToolId
+              ? { ...s, status: finalStatus, completedAt: Date.now() }
+              : s,
+          ),
         );
+        // Set agent inactive so it shows idle animation while lingering
+        const subId = os.getSubagentId(id, parentToolId);
+        if (subId !== null) {
+          os.setAgentActive(subId, false);
+          os.setAgentTool(subId, null);
+        }
+        // Linger briefly then despawn
+        setTimeout(() => {
+          os.removeSubagent(id, parentToolId);
+          setSubagentCharacters((prev) =>
+            prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
+          );
+        }, SUBAGENT_LINGER_MS);
       } else if (msg.type === 'characterSpritesLoaded') {
         const characters = msg.characters as Array<{
           down: string[][][];
