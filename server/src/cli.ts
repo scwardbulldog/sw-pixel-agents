@@ -332,9 +332,13 @@ async function main(): Promise<void> {
   console.log(`✓ Server running at ${url}`);
   console.log('✓ Scanning for active sessions...\n');
 
-  // Open browser
-  if (options.openBrowser) {
+  // Open browser (only when serving static files — in dev mode the webview runs via Vite)
+  if (options.openBrowser && staticHandler) {
     openBrowser(url);
+  } else if (!staticHandler) {
+    console.log(
+      `ℹ No built webview found. Use \`npm run dev:webview-standalone\` to start the dev UI.\n`,
+    );
   } else {
     console.log(`Open in browser: ${url}\n`);
   }

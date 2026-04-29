@@ -131,7 +131,6 @@ export class SessionManager {
         agent.isWaiting = true;
         agent.hadToolsInTurn = false;
         this.broadcaster.broadcast({ type: 'agentStatus', id: agentId, status: 'waiting' });
-        this.broadcaster.broadcast({ type: 'agentToolsClear', id: agentId });
         break;
       case 'PermissionRequest':
       case 'Notification':

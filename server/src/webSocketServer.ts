@@ -50,10 +50,16 @@ export class WebSocketBroadcaster {
       logger.info(`WebSocket: client connected (${this.clients.size} total)`);
 
       ws.on('message', (data) => {
-        // Handle incoming messages from browser (future: save layout, etc.)
+        // Handle incoming messages from browser.
+        // Standalone client wraps messages in an array; VS Code sends single objects.
         try {
-          const msg = JSON.parse(data.toString()) as { type: string };
-          this.handleClientMessage(ws, msg);
+          const parsed: unknown = JSON.parse(data.toString());
+          const messages = Array.isArray(parsed) ? parsed : [parsed];
+          for (const msg of messages) {
+            if (msg && typeof msg === 'object' && 'type' in msg) {
+              this.handleClientMessage(ws, msg as { type: string });
+            }
+          }
         } catch {
           logger.warn('WebSocket: invalid message from client');
         }

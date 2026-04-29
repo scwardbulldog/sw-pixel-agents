@@ -20,7 +20,7 @@ import { RateLimiter } from './rateLimiter.js';
 /** Discovery file written to ~/.pixel-agents/server.json so hook scripts can find the server. */
 export interface ServerConfig {
   /** Unix domain socket path (or Windows named pipe path) the server is listening on */
-  socketPath: string;
+  socketPath?: string;
   /** TCP port the server is listening on (standalone mode) */
   port?: number;
   /** PID of the process that owns the server */
@@ -69,7 +69,7 @@ export class PixelAgentsServer {
   async start(): Promise<ServerConfig> {
     // Check if another instance already has a server running
     const existing = this.readServerJson();
-    if (existing && isProcessRunning(existing.pid)) {
+    if (existing && existing.socketPath && isProcessRunning(existing.pid)) {
       // Another VS Code window owns the server, reuse its config
       this.config = existing;
       this.ownsServer = false;
