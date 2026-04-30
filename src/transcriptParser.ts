@@ -174,9 +174,7 @@ export function processTranscriptLine(
           if (block.type === 'tool_use' && block.id) {
             const toolName = block.name || '';
             const status = formatToolStatus(toolName, block.input || {});
-            logger.debug(
-              `JSONL: Agent ${agentId} - tool start: ${block.id} ${status}`,
-            );
+            logger.debug(`JSONL: Agent ${agentId} - tool start: ${block.id} ${status}`);
             agent.activeToolIds.add(block.id);
             agent.activeToolStatuses.set(block.id, status);
             agent.activeToolNames.set(block.id, toolName);
@@ -265,24 +263,22 @@ export function processTranscriptLine(
                 (completedToolName === 'Task' || completedToolName === 'Agent') &&
                 isAsyncAgentResult(block)
               ) {
-                logger.debug(
-                  `Agent ${agentId} background agent launched: ${completedToolId}`,
-                );
+                logger.debug(`Agent ${agentId} background agent launched: ${completedToolId}`);
                 agent.backgroundAgentToolIds.add(completedToolId);
                 continue; // don't mark as done yet
               }
 
-              logger.debug(
-                `JSONL: Agent ${agentId} - tool done: ${block.tool_use_id}`,
-              );
+              logger.debug(`JSONL: Agent ${agentId} - tool done: ${block.tool_use_id}`);
               // If the completed tool was a Task/Agent, clear its subagent tools
               if (completedToolName === 'Task' || completedToolName === 'Agent') {
                 agent.activeSubagentToolIds.delete(completedToolId);
                 agent.activeSubagentToolNames.delete(completedToolId);
+                const isError = (block as Record<string, unknown>).is_error === true;
                 webview?.postMessage({
                   type: 'subagentClear',
                   id: agentId,
                   parentToolId: completedToolId,
+                  isError,
                 });
               }
               agent.activeToolIds.delete(completedToolId);
@@ -329,9 +325,7 @@ export function processTranscriptLine(
         if (toolIdMatch) {
           const completedToolId = toolIdMatch[1];
           if (agent.backgroundAgentToolIds.has(completedToolId)) {
-            logger.debug(
-              `Agent ${agentId} background agent done: ${completedToolId}`,
-            );
+            logger.debug(`Agent ${agentId} background agent done: ${completedToolId}`);
             agent.backgroundAgentToolIds.delete(completedToolId);
             agent.activeSubagentToolIds.delete(completedToolId);
             agent.activeSubagentToolNames.delete(completedToolId);

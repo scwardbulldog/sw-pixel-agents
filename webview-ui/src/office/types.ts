@@ -172,6 +172,8 @@ export interface Character {
   isSubagent: boolean;
   /** Parent agent ID if this is a sub-agent, null otherwise */
   parentAgentId: number | null;
+  /** Position index in the huddle ring around the parent (0, 1, 2, ...) */
+  huddleIndex: number;
   /** Active matrix spawn/despawn effect, or null */
   matrixEffect: 'spawn' | 'despawn' | null;
   /** Timer counting up from 0 to MATRIX_EFFECT_DURATION */

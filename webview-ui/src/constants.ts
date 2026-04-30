@@ -149,6 +149,29 @@ export const FUEL_GAUGE_BG = '#222';
 export const TEAM_LEAD_COLOR = '#ffd700';
 export const TEAM_ROLE_COLOR = '#66aaff';
 
+// ── Sub-agent Display ───────────────────────────────────────
+/** How long (ms) a completed/failed sub-agent lingers before despawning */
+export const SUBAGENT_LINGER_MS = 3000;
+export const SUBAGENT_STATUS_COMPLETED_LABEL = 'Completed';
+export const SUBAGENT_STATUS_FAILED_LABEL = 'Failed';
+export const SUBAGENT_STATUS_RUNNING_LABEL = 'Running';
+/** Label shown on the main agent when it has active sub-agents */
+export const DELEGATING_LABEL = 'Delegating';
+/** Render scale for sub-agent "mini-me" sprites (0.5 = half size) */
+export const SUBAGENT_SCALE = 0.5;
+/** Pixel radius of the huddle semi-circle around the parent agent */
+export const SUBAGENT_HUDDLE_RADIUS = 12;
+/** Vertical offset (pixels) to position sub-agents at shoulder height */
+export const SUBAGENT_FLOAT_OFFSET_Y = -8;
+/** Amplitude of the gentle bob animation (pixels) */
+export const SUBAGENT_BOB_AMPLITUDE = 1.5;
+/** Speed of the bob animation (radians per second) */
+export const SUBAGENT_BOB_SPEED = 2.5;
+/** Hit-test half-width for sub-agent characters (smaller than normal) */
+export const SUBAGENT_HIT_HALF_WIDTH = 4;
+/** Hit-test height for sub-agent characters (smaller than normal) */
+export const SUBAGENT_HIT_HEIGHT = 12;
+
 // ── Provider Indicators ──────────────────────────────────────
 export const PROVIDER_LABEL_CLAUDE = 'Claude';
 export const PROVIDER_LABEL_COPILOT = 'Copilot';

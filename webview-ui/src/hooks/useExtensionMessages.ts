@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { SUBAGENT_LINGER_MS } from '../constants.js';
 import { playDoneSound, playPermissionSound, setSoundEnabled } from '../notificationSound.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { setFloorSprites } from '../office/floorTiles.js';
@@ -14,11 +15,24 @@ import { vscode } from '../vscodeApi.js';
 
 export type ProviderId = 'claude' | 'copilot';
 
+export const SubagentStatus = {
+  RUNNING: 'running',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+} as const;
+export type SubagentStatus = (typeof SubagentStatus)[keyof typeof SubagentStatus];
+
 export interface SubagentCharacter {
   id: number;
   parentAgentId: number;
   parentToolId: string;
   label: string;
+  /** Current lifecycle status of the sub-agent */
+  status: SubagentStatus;
+  /** Timestamp (ms) when this sub-agent was created */
+  startedAt: number;
+  /** Timestamp (ms) when this sub-agent completed or failed (null if still running) */
+  completedAt: number | null;
 }
 
 interface FurnitureAsset {
@@ -96,6 +110,8 @@ export function useExtensionMessages(
     Record<number, Record<string, ToolActivity[]>>
   >({});
   const [subagentCharacters, setSubagentCharacters] = useState<SubagentCharacter[]>([]);
+  /** Track linger timeout IDs for sub-agent despawn, keyed by "parentId:toolId" */
+  const lingerTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [layoutReady, setLayoutReady] = useState(false);
   const [layoutWasReset, setLayoutWasReset] = useState(false);
   const [loadedAssets, setLoadedAssets] = useState<
@@ -129,6 +145,10 @@ export function useExtensionMessages(
     const handler = (e: MessageEvent) => {
       const msg = e.data;
       const os = getOfficeState();
+
+      /** Check if a parent agent has any running sub-agents */
+      const hasRunningSubagents = (parentId: number): boolean =>
+        [...os.subagentMeta.values()].some((m) => m.parentAgentId === parentId);
 
       if (msg.type === 'layoutLoaded') {
         // Skip external layout updates while editor has unsaved changes
@@ -222,6 +242,13 @@ export function useExtensionMessages(
         // Remove all sub-agent characters belonging to this agent
         os.removeAllSubagents(id);
         setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+        // Cancel any pending linger timers for this agent's sub-agents
+        for (const [timerKey, timer] of lingerTimersRef.current) {
+          if (timerKey.startsWith(`${id}:`)) {
+            clearTimeout(timer);
+            lingerTimersRef.current.delete(timerKey);
+          }
+        }
         os.removeAgent(id);
       } else if (msg.type === 'existingAgents') {
         const incoming = msg.agents as number[];
@@ -299,7 +326,18 @@ export function useExtensionMessages(
           const subId = os.addSubagent(id, toolId);
           setSubagentCharacters((prev) => {
             if (prev.some((s) => s.id === subId)) return prev;
-            return [...prev, { id: subId, parentAgentId: id, parentToolId: toolId, label }];
+            return [
+              ...prev,
+              {
+                id: subId,
+                parentAgentId: id,
+                parentToolId: toolId,
+                label,
+                status: SubagentStatus.RUNNING,
+                startedAt: Date.now(),
+                completedAt: null,
+              },
+            ];
           });
         }
       } else if (msg.type === 'agentToolDone') {
@@ -327,17 +365,50 @@ export function useExtensionMessages(
           delete next[id];
           return next;
         });
-        // Remove all sub-agent characters belonging to this agent.
+        // Remove only completed/failed sub-agent characters (not still-running ones).
+        // Running sub-agents survive turn-end clears — they'll be removed by explicit
+        // subagentClear when the Task tool_result arrives.
         // Exception: team leads with inline teammates -- their sub-agents represent
         // real teammates and should only be removed by SubagentStop/subagentClear.
         const clearCh = os.characters.get(id);
         const hasInlineTeammates =
           clearCh?.teamName && clearCh?.isTeamLead && !clearCh?.teamUsesTmux;
         if (!hasInlineTeammates) {
-          os.removeAllSubagents(id);
-          setSubagentCharacters((prev) => prev.filter((s) => s.parentAgentId !== id));
+          setSubagentCharacters((prev) => {
+            // Find which sub-agents are still running (keep those)
+            const running = new Set(
+              prev
+                .filter((s) => s.parentAgentId === id && s.status === SubagentStatus.RUNNING)
+                .map((s) => s.parentToolId),
+            );
+            // Remove non-running sub-agents from officeState
+            // Collect first to avoid mutating map during iteration
+            const toRemove: string[] = [];
+            for (const [, subId] of os.subagentIdMap) {
+              const meta = os.subagentMeta.get(subId);
+              if (meta && meta.parentAgentId === id && !running.has(meta.parentToolId)) {
+                toRemove.push(meta.parentToolId);
+              }
+            }
+            for (const parentToolId of toRemove) {
+              os.removeSubagent(id, parentToolId);
+            }
+            // Cancel linger timers for removed (non-running) sub-agents
+            for (const [timerKey, timer] of lingerTimersRef.current) {
+              if (timerKey.startsWith(`${id}:`) && !running.has(timerKey.slice(`${id}:`.length))) {
+                clearTimeout(timer);
+                lingerTimersRef.current.delete(timerKey);
+              }
+            }
+            return prev.filter(
+              (s) => s.parentAgentId !== id || s.status === SubagentStatus.RUNNING,
+            );
+          });
         }
-        os.setAgentTool(id, null);
+        // Don't clear the parent's tool state if it still has running sub-agents
+        if (!hasRunningSubagents(id)) {
+          os.setAgentTool(id, null);
+        }
         os.clearPermissionBubble(id);
       } else if (msg.type === 'agentSelected') {
         const id = msg.id as number;
@@ -345,6 +416,13 @@ export function useExtensionMessages(
       } else if (msg.type === 'agentStatus') {
         const id = msg.id as number;
         const status = msg.status as string;
+        // If status is 'waiting' but agent has running sub-agents, keep it active
+        // (the agent is delegating to sub-agents, not truly idle)
+        if (status === 'waiting' && hasRunningSubagents(id)) {
+          // Suppress idle/waiting — parent is delegating
+          os.setAgentActive(id, true);
+          return;
+        }
         setAgentStatuses((prev) => {
           if (status === 'active') {
             if (!(id in prev)) return prev;
@@ -442,6 +520,7 @@ export function useExtensionMessages(
       } else if (msg.type === 'subagentClear') {
         const id = msg.id as number;
         const parentToolId = msg.parentToolId as string;
+        const isError = (msg.isError as boolean | undefined) ?? false;
         setSubagentTools((prev) => {
           const agentSubs = prev[id];
           if (!agentSubs || !(parentToolId in agentSubs)) return prev;
@@ -454,11 +533,31 @@ export function useExtensionMessages(
           }
           return { ...prev, [id]: next };
         });
-        // Remove sub-agent character
-        os.removeSubagent(id, parentToolId);
+        // Mark sub-agent as completed/failed, then remove after linger period
+        const finalStatus = isError ? SubagentStatus.FAILED : SubagentStatus.COMPLETED;
         setSubagentCharacters((prev) =>
-          prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
+          prev.map((s) =>
+            s.parentAgentId === id && s.parentToolId === parentToolId
+              ? { ...s, status: finalStatus, completedAt: Date.now() }
+              : s,
+          ),
         );
+        // Set agent inactive so it shows idle animation while lingering
+        const subId = os.getSubagentId(id, parentToolId);
+        if (subId !== null) {
+          os.setAgentActive(subId, false);
+          os.setAgentTool(subId, null);
+        }
+        // Linger briefly then despawn
+        const lingerKey = `${id}:${parentToolId}`;
+        const timer = setTimeout(() => {
+          lingerTimersRef.current.delete(lingerKey);
+          os.removeSubagent(id, parentToolId);
+          setSubagentCharacters((prev) =>
+            prev.filter((s) => !(s.parentAgentId === id && s.parentToolId === parentToolId)),
+          );
+        }, SUBAGENT_LINGER_MS);
+        lingerTimersRef.current.set(lingerKey, timer);
       } else if (msg.type === 'characterSpritesLoaded') {
         const characters = msg.characters as Array<{
           down: string[][][];
@@ -546,7 +645,15 @@ export function useExtensionMessages(
     }
 
     vscode.postMessage({ type: 'webviewReady' });
-    return () => window.removeEventListener('message', handler);
+    const timers = lingerTimersRef.current;
+    return () => {
+      window.removeEventListener('message', handler);
+      // Clean up any pending linger timers
+      for (const timer of timers.values()) {
+        clearTimeout(timer);
+      }
+      timers.clear();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getOfficeState]);
 
