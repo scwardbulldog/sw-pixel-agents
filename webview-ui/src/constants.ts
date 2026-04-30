@@ -159,10 +159,10 @@ export const SUBAGENT_STATUS_RUNNING_LABEL = 'Running';
 export const DELEGATING_LABEL = 'Delegating';
 /** Render scale for sub-agent "mini-me" sprites (0.5 = half size) */
 export const SUBAGENT_SCALE = 0.5;
-/** Pixel radius of the huddle circle around the parent agent */
-export const SUBAGENT_HUDDLE_RADIUS = 10;
-/** Vertical offset (pixels) to float sub-agents above the parent's head */
-export const SUBAGENT_FLOAT_OFFSET_Y = -14;
+/** Pixel radius of the huddle semi-circle around the parent agent */
+export const SUBAGENT_HUDDLE_RADIUS = 12;
+/** Vertical offset (pixels) to position sub-agents at shoulder height */
+export const SUBAGENT_FLOAT_OFFSET_Y = -8;
 /** Amplitude of the gentle bob animation (pixels) */
 export const SUBAGENT_BOB_AMPLITUDE = 1.5;
 /** Speed of the bob animation (radians per second) */

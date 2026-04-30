@@ -787,9 +787,13 @@ export class OfficeState {
     }
     if (totalSubs === 0) return; // shouldn't happen, but guard against it
 
-    // Distribute sub-agents in a circle around the parent
-    const angleStep = (2 * Math.PI) / totalSubs;
-    const angle = angleStep * ch.huddleIndex - Math.PI / 2; // start from top
+    // Distribute sub-agents in a semi-circle from the parent's right shoulder
+    // to left shoulder, arcing over the head. In screen coords (y-down):
+    // angle 0 = right shoulder, angle π = left shoulder, sweeping through
+    // -π/2 (top/behind head). Sub-agents at certain positions naturally
+    // overlap/cover the parent from the viewer's perspective.
+    const angleStep = totalSubs > 1 ? Math.PI / (totalSubs - 1) : 0;
+    const angle = totalSubs > 1 ? angleStep * ch.huddleIndex : Math.PI / 2; // single sub → top center
     const radius = SUBAGENT_HUDDLE_RADIUS;
 
     // Bob animation: each sub-agent bobs at a slightly offset phase
@@ -799,12 +803,14 @@ export class OfficeState {
     // Parent sitting offset
     const parentSittingOff = parent.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
 
+    // X: cos(0)=+1 (right), cos(π/2)=0 (center), cos(π)=-1 (left)
     ch.x = parent.x + Math.cos(angle) * radius;
+    // Y: -sin sweeps upward over the head (sin(π/2) = 1, so -sin = up in screen coords)
     ch.y =
       parent.y +
       parentSittingOff +
-      SUBAGENT_FLOAT_OFFSET_Y +
-      Math.sin(angle) * (radius * 0.4) +
+      SUBAGENT_FLOAT_OFFSET_Y -
+      Math.sin(angle) * (radius * 0.5) +
       bobY;
     ch.dir = parent.dir;
   }
